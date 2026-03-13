@@ -13,6 +13,7 @@ writeCommand
   .description("Write the next chapter for a book")
   .argument("[book-id]", "Book ID (auto-detected if only one book)")
   .option("--count <n>", "Number of chapters to write", "1")
+  .option("--words <n>", "Words per chapter (overrides book config)")
   .option("--context <text>", "Creative guidance (natural language)")
   .option("--context-file <path>", "Read guidance from file")
   .option("--json", "Output JSON")
@@ -33,12 +34,13 @@ writeCommand
       });
 
       const count = parseInt(opts.count, 10);
+      const wordCount = opts.words ? parseInt(opts.words, 10) : undefined;
 
       const results = [];
       for (let i = 0; i < count; i++) {
         if (!opts.json) log(`[${i + 1}/${count}] Writing chapter for "${bookId}"...`);
 
-        const result = await pipeline.writeNextChapter(bookId);
+        const result = await pipeline.writeNextChapter(bookId, wordCount);
         results.push(result);
 
         if (!opts.json) {
@@ -81,6 +83,7 @@ writeCommand
   .description("Re-generate a specific chapter: rewrite [book-id] <chapter>")
   .argument("<args...>", "Book ID (optional) and chapter number")
   .option("--force", "Skip confirmation prompt")
+  .option("--words <n>", "Words per chapter (overrides book config)")
   .option("--json", "Output JSON")
   .action(async (args: ReadonlyArray<string>, opts) => {
     try {
@@ -154,6 +157,8 @@ writeCommand
 
       if (!opts.json) log(`Regenerating chapter ${chapter}...`);
 
+      const wordCount = opts.words ? parseInt(opts.words, 10) : undefined;
+
       const pipeline = new PipelineRunner({
         client,
         model: config.llm.model,
@@ -161,7 +166,7 @@ writeCommand
         notifyChannels: config.notify,
       });
 
-      const result = await pipeline.writeNextChapter(bookId);
+      const result = await pipeline.writeNextChapter(bookId, wordCount);
 
       if (opts.json) {
         log(JSON.stringify(result, null, 2));

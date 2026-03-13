@@ -5,6 +5,7 @@ import { loadConfig, createClient, findProjectRoot, resolveContext, resolveBookI
 export const draftCommand = new Command("draft")
   .description("Write a draft chapter (no audit/revise)")
   .argument("[book-id]", "Book ID (auto-detected if only one book)")
+  .option("--words <n>", "Words per chapter (overrides book config)")
   .option("--context <text>", "Creative guidance (natural language)")
   .option("--context-file <path>", "Read guidance from file")
   .option("--json", "Output JSON")
@@ -22,9 +23,11 @@ export const draftCommand = new Command("draft")
         projectRoot: root,
       });
 
+      const wordCount = opts.words ? parseInt(opts.words, 10) : undefined;
+
       if (!opts.json) log(`Writing draft for "${bookId}"...`);
 
-      const result = await pipeline.writeDraft(bookId, context);
+      const result = await pipeline.writeDraft(bookId, context, wordCount);
 
       if (opts.json) {
         log(JSON.stringify(result, null, 2));

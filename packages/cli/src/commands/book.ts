@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { PipelineRunner, StateManager, type BookConfig } from "@actalk/inkos-core";
-import { loadConfig, createClient, findProjectRoot, resolveContext, log, logError } from "../utils.js";
+import { loadConfig, createClient, findProjectRoot, resolveContext, resolveBookId, log, logError } from "../utils.js";
 
 export const bookCommand = new Command("book")
   .description("Manage books");
@@ -75,6 +75,63 @@ bookCommand
         log(JSON.stringify({ error: String(e) }));
       } else {
         logError(`Failed to create book: ${e}`);
+      }
+      process.exit(1);
+    }
+  });
+
+bookCommand
+  .command("update")
+  .description("Update book settings")
+  .argument("[book-id]", "Book ID (auto-detected if only one book)")
+  .option("--chapter-words <n>", "Words per chapter")
+  .option("--target-chapters <n>", "Target chapter count")
+  .option("--status <status>", "Book status (outlining/active/paused/completed)")
+  .option("--json", "Output JSON")
+  .action(async (bookIdArg: string | undefined, opts) => {
+    try {
+      const root = findProjectRoot();
+      const bookId = await resolveBookId(bookIdArg, root);
+      const state = new StateManager(root);
+      const book = await state.loadBookConfig(bookId);
+
+      const updates: Record<string, unknown> = {};
+      if (opts.chapterWords) updates.chapterWordCount = parseInt(opts.chapterWords, 10);
+      if (opts.targetChapters) updates.targetChapters = parseInt(opts.targetChapters, 10);
+      if (opts.status) updates.status = opts.status;
+
+      if (Object.keys(updates).length === 0) {
+        if (opts.json) {
+          log(JSON.stringify(book, null, 2));
+        } else {
+          log(`Book: ${book.title} (${bookId})`);
+          log(`  Words/chapter: ${book.chapterWordCount}`);
+          log(`  Target chapters: ${book.targetChapters}`);
+          log(`  Status: ${book.status}`);
+          log(`  Genre: ${book.genre} | Platform: ${book.platform}`);
+        }
+        return;
+      }
+
+      const updated: BookConfig = {
+        ...book,
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      };
+      await state.saveBookConfig(bookId, updated);
+
+      if (opts.json) {
+        log(JSON.stringify(updated, null, 2));
+      } else {
+        for (const [key, value] of Object.entries(updates)) {
+          log(`  ${key}: ${(book as Record<string, unknown>)[key]} → ${value}`);
+        }
+      }
+    } catch (e) {
+      if (opts.json) {
+        log(JSON.stringify({ error: String(e) }));
+      } else {
+        logError(`Failed to update book: ${e}`);
       }
       process.exit(1);
     }

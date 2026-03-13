@@ -118,7 +118,7 @@ export class PipelineRunner {
   }
 
   /** Write a single draft chapter. Saves chapter file + truth files + index + snapshot. */
-  async writeDraft(bookId: string, context?: string): Promise<DraftResult> {
+  async writeDraft(bookId: string, context?: string, wordCount?: number): Promise<DraftResult> {
     const releaseLock = await this.state.acquireBookLock(bookId);
     try {
       const book = await this.state.loadBookConfig(bookId);
@@ -133,6 +133,7 @@ export class PipelineRunner {
         bookDir,
         chapterNumber,
         externalContext: context ?? this.config.externalContext,
+        ...(wordCount ? { wordCountOverride: wordCount } : {}),
       });
 
       // Save chapter file
@@ -368,16 +369,16 @@ export class PipelineRunner {
   // Full pipeline (convenience — runs draft + audit + revise in one shot)
   // ---------------------------------------------------------------------------
 
-  async writeNextChapter(bookId: string): Promise<ChapterPipelineResult> {
+  async writeNextChapter(bookId: string, wordCount?: number): Promise<ChapterPipelineResult> {
     const releaseLock = await this.state.acquireBookLock(bookId);
     try {
-      return await this._writeNextChapterLocked(bookId);
+      return await this._writeNextChapterLocked(bookId, wordCount);
     } finally {
       await releaseLock();
     }
   }
 
-  private async _writeNextChapterLocked(bookId: string): Promise<ChapterPipelineResult> {
+  private async _writeNextChapterLocked(bookId: string, wordCount?: number): Promise<ChapterPipelineResult> {
     const book = await this.state.loadBookConfig(bookId);
     const bookDir = this.state.bookDir(bookId);
     const chapterNumber = await this.state.getNextChapterNumber(bookId);
@@ -390,6 +391,7 @@ export class PipelineRunner {
       bookDir,
       chapterNumber,
       externalContext: this.config.externalContext,
+      ...(wordCount ? { wordCountOverride: wordCount } : {}),
     });
 
     // 2. Audit chapter

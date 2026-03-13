@@ -298,12 +298,13 @@ inkos up                       # 守护进程模式
 | 命令 | 说明 |
 |------|------|
 | `inkos init [name]` | 初始化项目（省略 name 在当前目录初始化） |
-| `inkos book create` | 创建新书（生成世界观 + 卷纲 + 本书规则） |
+| `inkos book create` | 创建新书（`--chapter-words` 设定字数） |
+| `inkos book update [id]` | 修改书设置（`--chapter-words`、`--target-chapters`、`--status`） |
 | `inkos book list` | 列出所有书籍 |
 | `inkos genre list/show/copy/create` | 查看、复制、创建题材 |
-| `inkos write next [id]` | 完整管线写下一章 |
+| `inkos write next [id]` | 完整管线写下一章（`--words` 覆盖字数，`--count` 连写） |
 | `inkos write rewrite [id] <n>` | 重写第 N 章（恢复状态快照，需确认） |
-| `inkos draft [id]` | 只写草稿（不审不改） |
+| `inkos draft [id]` | 只写草稿（`--words` 覆盖字数） |
 | `inkos audit [id] [n]` | 审计指定章节 |
 | `inkos revise [id] [n]` | 修订指定章节 |
 | `inkos agent <instruction>` | 自然语言 Agent 模式 |
@@ -322,7 +323,7 @@ inkos up                       # 守护进程模式
 | `inkos update` | 更新到最新版本 |
 | `inkos up / down` | 启动/停止守护进程 |
 
-`[id]` 参数在项目只有一本书时可省略，自动检测。所有命令支持 `--json` 输出结构化数据，`draft`/`write next`/`book create` 支持 `--context` 传入创作指导。
+`[id]` 参数在项目只有一本书时可省略，自动检测。所有命令支持 `--json` 输出结构化数据。`draft`/`write next`/`book create` 支持 `--context` 传入创作指导，`--words` 覆盖每章字数（OpenClaw 可逐章动态控制）。
 
 ## 实测数据
 

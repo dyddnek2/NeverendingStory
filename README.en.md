@@ -298,12 +298,13 @@ inkos up                          # Daemon mode
 | Command | Description |
 |---------|-------------|
 | `inkos init [name]` | Initialize project (omit name to init current directory) |
-| `inkos book create` | Create a new book (generates worldbuilding + outline + book rules) |
+| `inkos book create` | Create a new book (`--chapter-words` to set word count) |
+| `inkos book update [id]` | Update book settings (`--chapter-words`, `--target-chapters`, `--status`) |
 | `inkos book list` | List all books |
 | `inkos genre list/show/copy/create` | View, copy, or create genres |
-| `inkos write next [id]` | Full pipeline: write next chapter |
+| `inkos write next [id]` | Full pipeline: write next chapter (`--words` to override, `--count` for batch) |
 | `inkos write rewrite [id] <n>` | Rewrite chapter N (restores state snapshot, requires confirmation) |
-| `inkos draft [id]` | Write draft only (no audit or revision) |
+| `inkos draft [id]` | Write draft only (`--words` to override word count) |
 | `inkos audit [id] [n]` | Audit a specific chapter |
 | `inkos revise [id] [n]` | Revise a specific chapter |
 | `inkos agent <instruction>` | Natural language agent mode |
@@ -322,7 +323,7 @@ inkos up                          # Daemon mode
 | `inkos update` | Update to latest version |
 | `inkos up / down` | Start/stop daemon |
 
-`[id]` is auto-detected when the project has only one book. All commands support `--json` for structured output. `draft`/`write next`/`book create` support `--context` for writing guidance.
+`[id]` is auto-detected when the project has only one book. All commands support `--json` for structured output. `draft`/`write next`/`book create` support `--context` for writing guidance and `--words` to override per-chapter word count (OpenClaw can dynamically control this per chapter).
 
 ## Key Features
 

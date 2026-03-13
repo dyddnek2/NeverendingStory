@@ -12,6 +12,7 @@ export interface WriteChapterInput {
   readonly bookDir: string;
   readonly chapterNumber: number;
   readonly externalContext?: string;
+  readonly wordCountOverride?: number;
 }
 
 export interface WriteChapterOutput {
@@ -78,7 +79,7 @@ export class WriterAgent extends BaseAgent {
       ledger: genreProfile.numericalSystem ? ledger : "",
       hooks,
       recentChapters,
-      wordCount: book.chapterWordCount,
+      wordCount: input.wordCountOverride ?? book.chapterWordCount,
       externalContext: input.externalContext,
       chapterSummaries,
       subplotBoard,
