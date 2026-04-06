@@ -68,6 +68,41 @@ export {
 } from "./models/input-governance.js";
 export { PlannerAgent, type PlanChapterInput, type PlanChapterOutput } from "./agents/planner.js";
 export { ComposerAgent, type ComposeChapterInput, type ComposeChapterOutput } from "./agents/composer.js";
+export {
+  AutomationModeSchema,
+  type AutomationMode,
+  normalizeAutomationMode,
+} from "./interaction/modes.js";
+export {
+  InteractionIntentTypeSchema,
+  type InteractionIntentType,
+  InteractionRequestSchema,
+  type InteractionRequest,
+} from "./interaction/intents.js";
+export {
+  ExecutionStatusSchema,
+  ExecutionStateSchema,
+  type ExecutionStatus,
+  type ExecutionState,
+  isTerminalExecutionStatus,
+} from "./interaction/events.js";
+export {
+  PendingDecisionSchema,
+  InteractionMessageSchema,
+  InteractionSessionSchema,
+  type PendingDecision,
+  type InteractionMessage,
+  type InteractionSession,
+  bindActiveBook,
+  clearPendingDecision,
+  updateAutomationMode,
+} from "./interaction/session.js";
+export { routeInteractionRequest } from "./interaction/request-router.js";
+export {
+  runInteractionRequest,
+  type InteractionRuntimeTools,
+  type InteractionRuntimeResult,
+} from "./interaction/runtime.js";
 
 // LLM
 export { createLLMClient, chatCompletion, chatWithTools, createStreamMonitor, PartialResponseError, type LLMClient, type LLMResponse, type LLMMessage, type ToolDefinition, type ToolCall, type AgentMessage, type ChatWithToolsResult, type StreamProgress, type OnStreamProgress } from "./llm/provider.js";
