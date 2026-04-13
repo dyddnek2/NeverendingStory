@@ -4,7 +4,8 @@ import { isAppleTerminal } from "./theme.js";
 
 const marked = new Marked();
 marked.use(markedTerminal({
-  width: Math.min(process.stdout.columns ?? 80, 100) - 8,
+  // Terminal width minus paddingX(2*2) + prefix(2) + margin(2) = 8, plus extra 2 for safety
+  width: Math.min(process.stdout.columns ?? 80, 100) - 10,
   reflowText: true,
   showSectionPrefix: false,
   tab: 2,
