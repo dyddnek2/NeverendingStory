@@ -143,8 +143,6 @@ export function InkTuiDashboard(props: InkTuiDashboardProps): React.JSX.Element 
             <Text color={props.isSubmitting ? STATUS_ACTIVE : WARM_MUTED}>
               {model.composerStatus}
             </Text>
-            <Text color={WARM_BORDER}> │ </Text>
-            <Text color={WARM_MUTED}>{model.composerHelper}</Text>
           </Box>
 
           {/* Slash command suggestions */}
