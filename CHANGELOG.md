@@ -1,5 +1,32 @@
 # Changelog
 
+## v1.3.0
+
+### Release Focus
+
+Studio 2.0 正式发布。`inkos` 现在默认直接启动 Studio，本地 Web 工作台成为主入口；TUI 保留为 `inkos tui`。
+
+### 新功能
+
+- **Studio 2.0 默认入口**：`inkos` 直接启动 Studio，首页、服务商管理、写作工作台统一为新的主交互入口
+- **自定义 OpenAI-compatible 服务**：Studio 现支持自定义 `baseUrl`、协议类型（`chat` / `responses`）与流式开关，兼容更多中转站和聚合网关
+- **配置来源切换**：Studio 新增 `.env` 与 Studio 配置的显式切换，不再只能被目录里的 `INKOS_LLM_*` 被动覆盖
+- **原生 custom transport**：对 `custom` 服务新增原生 fetch 请求链，减少对 SDK 路径的单点依赖，提升兼容性
+
+### 改进
+
+- **服务测试更真实**：服务页测试不再只测 `/models`，还会执行最小生成探测，避免“测试连接通过但聊天失败”的假阳性
+- **服务保存流程优化**：保存成功后自动返回服务商管理页，顶部首页和返回入口更醒目
+- **密钥回填**：服务详情页会重新加载已保存的 key，避免重新打开后误以为 key 丢失
+- **错误可见性增强**：Studio 聊天不再用 `Acknowledged.` 掩盖空回复，会直接显示真实上游错误
+
+### Bug Fixes
+
+- 修复 `llm.services + defaultModel + secrets` 与运行时加载契约不一致的问题
+- 修复 `custom:*` 服务在测试连接、模型列表与 `/api/v1/agent` 之间链路不一致的问题
+- 修复 `inkos` 启动 Studio 时因未设置默认模型而直接抛出 `llm.model` 校验错误
+- 修复自定义服务非流式 / SSE 返回被误当作普通 JSON 解析的问题
+
 ## v1.2.0
 
 ### Release Focus
