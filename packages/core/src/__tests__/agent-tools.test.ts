@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StateManager } from "../state/manager.js";
 import {
+  createSubAgentTool,
   createPatchChapterTextTool,
   createRenameEntityTool,
   createReviseChapterTool,
@@ -118,5 +119,45 @@ describe("agent deterministic writing tools", () => {
         ]),
       }),
     ]);
+  });
+
+  it("requires an explicit title when the architect sub-agent creates a book", async () => {
+    const pipeline = {
+      initBook: vi.fn(async () => undefined),
+    };
+    const tool = createSubAgentTool(pipeline as never, null);
+
+    const result = await tool.execute("tool-5", {
+      agent: "architect",
+      instruction: "写一本港风商战小说",
+    });
+
+    expect(result.content[0]?.type).toBe("text");
+    if (result.content[0]?.type === "text") {
+      expect(result.content[0].text).toContain("title is required");
+    }
+    expect(pipeline.initBook).not.toHaveBeenCalled();
+  });
+
+  it("passes the explicit architect title straight into initBook", async () => {
+    const pipeline = {
+      initBook: vi.fn(async () => undefined),
+    };
+    const tool = createSubAgentTool(pipeline as never, null);
+
+    await tool.execute("tool-6", {
+      agent: "architect",
+      title: "夜港账本",
+      instruction: "写一本港风商战小说",
+    });
+
+    expect(pipeline.initBook).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "夜港账本",
+      }),
+      expect.objectContaining({
+        externalContext: "写一本港风商战小说",
+      }),
+    );
   });
 });

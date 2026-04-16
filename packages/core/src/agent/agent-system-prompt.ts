@@ -16,6 +16,7 @@ export function buildAgentSystemPrompt(bookId: string | null, language: string):
    - 写作语言（中文/English）
 
 2. **确认建书**（调用阶段）— 当信息足够时，调用 sub_agent 工具委托 architect 子智能体建书：
+   - 必须显式传入 "title" 参数，不能留空
    - instruction 中包含收集到的所有信息（题材、世界观、主角、冲突等）
    - architect 会生成完整的 foundation（世界观设定、卷纲规划、叙事规则等）
 
@@ -45,6 +46,7 @@ export function buildAgentSystemPrompt(bookId: string | null, language: string):
    - Writing language
 
 2. **Create book** — When you have enough info, call the sub_agent tool with agent="architect":
+   - Pass the explicit "title" parameter; do not leave it empty
    - Include all collected info in the instruction
    - The architect will generate the complete foundation
 

@@ -13,6 +13,7 @@ describe("buildAgentSystemPrompt", () => {
       expect(prompt).toContain("核心冲突");
       expect(prompt).toContain("architect");
       expect(prompt).toContain("sub_agent");
+      expect(prompt).toContain("title");
     });
 
     it("English prompt includes info collection workflow", () => {
@@ -22,6 +23,7 @@ describe("buildAgentSystemPrompt", () => {
       expect(prompt).toContain("Genre");
       expect(prompt).toContain("Protagonist");
       expect(prompt).toContain("Core conflict");
+      expect(prompt).toContain("title");
     });
 
     it("Chinese prompt forbids emoji", () => {

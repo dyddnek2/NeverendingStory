@@ -59,7 +59,17 @@ const SubAgentParams = Type.Object({
   ]),
   instruction: Type.String({ description: "Natural language instruction from the main Agent" }),
   bookId: Type.Optional(Type.String({ description: "Book ID — required for all agents except architect" })),
+  title: Type.Optional(Type.String({ description: "Architect only: explicit book title. Required when creating a book." })),
 });
+
+function deriveBookIdFromTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fff]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 30);
+}
 
 export function createSubAgentTool(
   pipeline: PipelineRunner,
@@ -80,7 +90,7 @@ export function createSubAgentTool(
       _signal?: AbortSignal,
       onUpdate?: AgentToolUpdateCallback,
     ): Promise<AgentToolResult<undefined>> {
-      const { agent, instruction, bookId } = params;
+      const { agent, instruction, bookId, title } = params;
 
       const progress = (msg: string) => {
         onUpdate?.(textResult(msg));
@@ -93,14 +103,18 @@ export function createSubAgentTool(
             if (activeBookId) {
               return textResult("当前已有书籍，不需要建书。如果你想创建新书，请先回到首页。");
             }
-            const id = bookId || `book-${Date.now().toString(36)}`;
+            const resolvedTitle = title?.trim();
+            if (!resolvedTitle) {
+              return textResult('Error: title is required for the architect agent.');
+            }
+            const id = bookId || deriveBookIdFromTitle(resolvedTitle) || `book-${Date.now().toString(36)}`;
             progress(`Starting architect for book "${id}"...`);
             await pipeline.initBook(
-              { id, genre: "general", title: "", language: "zh" } as any,
+              { id, genre: "general", title: resolvedTitle, language: "zh" } as any,
               { externalContext: instruction },
             );
             progress(`Architect finished — book "${id}" foundation created.`);
-            return textResult(`Book "${id}" initialised successfully. Foundation files are ready.`);
+            return textResult(`Book "${resolvedTitle}" (${id}) initialised successfully. Foundation files are ready.`);
           }
 
           case "writer": {
