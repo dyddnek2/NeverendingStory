@@ -1003,7 +1003,7 @@ export function createStudioServer(initialConfig: ProjectConfig, root: string) {
     return c.json({
       ok: true,
       modelCount: probe.models.length,
-      models: probe.models.slice(0, 50),
+      models: probe.models,
       selectedModel: probe.selectedModel,
       detected: {
         apiFormat: probe.apiFormat,
