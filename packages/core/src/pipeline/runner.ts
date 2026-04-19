@@ -1,7 +1,7 @@
 import type { LLMClient, OnStreamProgress } from "../llm/provider.js";
 import { chatCompletion, createLLMClient } from "../llm/provider.js";
 import type { Logger } from "../utils/logger.js";
-import type { BookConfig, FanficMode } from "../models/book.js";
+import type { BookConfig, FanficMode, WritingLanguage } from "../models/book.js";
 import type { ChapterMeta } from "../models/chapter.js";
 import type { NotifyChannel, LLMConfig, AgentLLMOverride, InputGovernanceMode } from "../models/project.js";
 import type { GenreProfile } from "../models/genre-profile.js";
@@ -43,6 +43,8 @@ import {
 import { persistChapterArtifacts } from "./chapter-persistence.js";
 import { runChapterReviewCycle } from "./chapter-review-cycle.js";
 import { validateChapterTruthPersistence } from "./chapter-truth-validation.js";
+
+type ProjectLanguage = WritingLanguage;
 import { loadPersistedPlan, relativeToBookDir } from "./persisted-governed-plan.js";
 
 const SEQUENCE_LEVEL_CATEGORIES = new Set([
@@ -258,7 +260,7 @@ export class PipelineRunner {
     readonly mode: "original" | "fanfic" | "series";
     readonly sourceCanon?: string;
     readonly styleGuide?: string;
-    readonly language: "zh" | "en";
+  readonly language: ProjectLanguage;
     readonly stageLanguage: LengthLanguage;
     readonly maxRetries?: number;
   }): Promise<ArchitectOutput> {
@@ -322,12 +324,14 @@ export class PipelineRunner {
       }>;
       readonly overallFeedback: string;
     },
-    language: "zh" | "en",
+  language: ProjectLanguage,
   ): string {
     const dimensionLines = review.dimensions
       .map((dimension) => (
         language === "en"
           ? `- ${dimension.name} [${dimension.score}]: ${dimension.feedback}`
+          : language === "ko"
+            ? `- ${dimension.name} (${dimension.score}점): ${dimension.feedback}`
           : `- ${dimension.name}（${dimension.score}分）：${dimension.feedback}`
       ))
       .join("\n");
@@ -340,6 +344,14 @@ export class PipelineRunner {
           "## Dimension Notes",
           dimensionLines || "- none",
         ].join("\n")
+      : language === "ko"
+        ? [
+            "## 총평",
+            review.overallFeedback,
+            "",
+            "## 항목별 메모",
+            dimensionLines || "- 없음",
+          ].join("\n")
       : [
           "## 总评",
           review.overallFeedback,
@@ -456,10 +468,10 @@ export class PipelineRunner {
     this.logStage(stageLanguage, { zh: "生成基础设定", en: "generating foundation" });
     const { profile: gp } = await this.loadGenreProfile(book.genre);
     const reviewer = new FoundationReviewerAgent(this.agentCtxFor("foundation-reviewer", book.id));
-    const resolvedLanguage = (book.language ?? gp.language) === "en" ? "en" as const : "zh" as const;
+    const resolvedLanguage = stageLanguage;
     const foundation = await this.generateAndReviewFoundation({
       generate: (reviewFeedback) => architect.generateFoundation(
-        book,
+        { ...book, language: resolvedLanguage },
         options.externalContext ?? this.config.externalContext,
         reviewFeedback,
       ),
@@ -477,13 +489,13 @@ export class PipelineRunner {
         stagingBookDir,
         foundation,
         gp.numericalSystem,
-        book.language ?? gp.language,
+        resolvedLanguage,
       );
 
       this.logStage(stageLanguage, { zh: "初始化控制文档", en: "initializing control documents" });
       await this.state.ensureControlDocumentsAt(
         stagingBookDir,
-        book.language ?? gp.language,
+        resolvedLanguage,
         options.authorIntent ?? this.config.externalContext,
       );
       if (options.currentFocus?.trim()) {
@@ -670,7 +682,9 @@ export class PipelineRunner {
       const resolvedLang = book.language ?? gp.language;
       const heading = resolvedLang === "en"
         ? `# Chapter ${chapterNumber}: ${draftOutput.title}`
-        : `# 第${chapterNumber}章 ${draftOutput.title}`;
+        : resolvedLang === "ko"
+          ? `# 제${chapterNumber}화 ${draftOutput.title}`
+          : `# 第${chapterNumber}章 ${draftOutput.title}`;
       await writeFile(filePath, `${heading}\n\n${draftOutput.content}`, "utf-8");
 
       // Save truth files
@@ -1027,7 +1041,9 @@ export class PipelineRunner {
       const reviseLang = book.language ?? gp.language;
       const reviseHeading = reviseLang === "en"
         ? `# Chapter ${targetChapter}: ${chapterMeta.title}`
-        : `# 第${targetChapter}章 ${chapterMeta.title}`;
+        : reviseLang === "ko"
+          ? `# 제${targetChapter}화 ${chapterMeta.title}`
+          : `# 第${targetChapter}章 ${chapterMeta.title}`;
       await writeFile(
         join(chaptersDir, existingFile),
         `${reviseHeading}\n\n${normalizedRevision.content}`,
@@ -2024,7 +2040,7 @@ ${matrix}`,
               generate: (reviewFeedback) => architect.generateFoundationFromImport(book, allText, undefined, reviewFeedback, { importMode: "series" }),
               reviewer: new FoundationReviewerAgent(this.agentCtxFor("foundation-reviewer", input.bookId)),
               mode: "series",
-              language: resolvedLanguage === "en" ? "en" : "zh",
+              language: resolvedLanguage,
               stageLanguage: resolvedLanguage,
             })
           : await architect.generateFoundationFromImport(book, allText);
@@ -2296,6 +2312,23 @@ ${matrix}`,
       ].join("\n");
     }
 
+    if (language === "ko") {
+      return [
+        "# 현재 상태",
+        "",
+        "| 항목 | 값 |",
+        "| --- | --- |",
+        "| 현재 화 | 0 |",
+        "| 현재 위치 | (미정) |",
+        "| 주인공 상태 | (미정) |",
+        "| 현재 목표 | (미정) |",
+        "| 현재 제약 | (미정) |",
+        "| 현재 관계 | (미정) |",
+        "| 현재 갈등 | (미정) |",
+        "",
+      ].join("\n");
+    }
+
     return [
       "# 当前状态",
       "",
@@ -2318,6 +2351,16 @@ ${matrix}`,
         "# Pending Hooks",
         "",
         "| hook_id | start_chapter | type | status | last_advanced_chapter | expected_payoff | notes |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+        "",
+      ].join("\n");
+    }
+
+    if (language === "ko") {
+      return [
+        "# 복선 풀",
+        "",
+        "| hook_id | 시작 화 | 유형 | 상태 | 최근 진전 | 예상 회수 | 메모 |",
         "| --- | --- | --- | --- | --- | --- | --- |",
         "",
       ].join("\n");

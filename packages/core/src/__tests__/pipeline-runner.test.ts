@@ -343,8 +343,71 @@ describe("PipelineRunner", () => {
       const runtimeDir = await stat(join(storyDir, "runtime"));
 
       expect(authorIntent).toContain("mentor conflict");
-      expect(currentFocus).toContain("当前聚焦");
+      expect(currentFocus).toContain("현재 집중");
       expect(runtimeDir.isDirectory()).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves English foundation flow when book language is unset but genre language is English", async () => {
+    const { root, runner, state } = await createRunnerFixture();
+    const book = {
+      id: "english-default-book",
+      title: "English Default Book",
+      platform: "other" as const,
+      genre: "other",
+      status: "outlining" as const,
+      targetChapters: 20,
+      chapterWordCount: 2200,
+      createdAt: "2026-04-20T00:00:00.000Z",
+      updatedAt: "2026-04-20T00:00:00.000Z",
+    };
+
+    vi.spyOn(runner as unknown as {
+      loadGenreProfile: (genre: string) => Promise<{ profile: { name: string; id: string; language: "en"; chapterTypes: string[]; fatigueWords: string[]; numericalSystem: false; powerScaling: false; eraResearch: false; pacingRule: string; satisfactionTypes: string[]; auditDimensions: number[] } }>;
+    }, "loadGenreProfile").mockResolvedValue({
+      profile: {
+        id: "other",
+        name: "Other",
+        language: "en",
+        chapterTypes: [],
+        fatigueWords: [],
+        numericalSystem: false,
+        powerScaling: false,
+        eraResearch: false,
+        pacingRule: "",
+        satisfactionTypes: [],
+        auditDimensions: [],
+      },
+    });
+
+    const generateFoundationSpy = vi.spyOn(ArchitectAgent.prototype, "generateFoundation").mockResolvedValue({
+      storyBible: "# Story Bible\n",
+      volumeOutline: "# Volume Outline\n",
+      bookRules: "---\nversion: \"1.0\"\n---\n\n# Book Rules\n",
+      currentState: "# Current State\n",
+      pendingHooks: "# Pending Hooks\n",
+    });
+    vi.spyOn(FoundationReviewerAgent.prototype, "review").mockResolvedValue({
+      passed: true,
+      totalScore: 90,
+      dimensions: [],
+      overallFeedback: "Pass",
+    });
+
+    try {
+      await runner.initBook(book);
+      const savedStoryDir = join(state.bookDir(book.id), "story");
+      const currentFocus = await readFile(join(savedStoryDir, "current_focus.md"), "utf-8");
+
+      expect(generateFoundationSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ language: "en" }),
+        undefined,
+        undefined,
+      );
+      expect(currentFocus).toContain("# Current Focus");
+      expect(currentFocus).not.toContain("# 当前聚焦");
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -396,7 +459,10 @@ describe("PipelineRunner", () => {
       });
 
       expect(generateFoundationSpy).toHaveBeenCalledWith(
-        book,
+        expect.objectContaining({
+          ...book,
+          language: "ko",
+        }),
         expect.stringContaining("近未来港口城"),
         undefined,
       );
@@ -493,6 +559,31 @@ describe("PipelineRunner", () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  it("formats foundation review feedback in Korean without falling back to Chinese headings", async () => {
+    const { runner } = await createRunnerFixture();
+
+    const feedback = (runner as unknown as {
+      buildFoundationReviewFeedback: (review: {
+        dimensions: ReadonlyArray<{ name: string; score: number; feedback: string }>;
+        overallFeedback: string;
+      }, language: "ko" | "zh" | "en") => string;
+    }).buildFoundationReviewFeedback({
+      overallFeedback: "초반 갈등을 더 빨리 붙여라.",
+      dimensions: [
+        {
+          name: "핵심 갈등",
+          score: 62,
+          feedback: "갈등 축이 아직 분산되어 있다.",
+        },
+      ],
+    }, "ko");
+
+    expect(feedback).toContain("## 총평");
+    expect(feedback).toContain("## 항목별 메모");
+    expect(feedback).toContain("핵심 갈등 (62점)");
+    expect(feedback).not.toContain("## 总评");
   });
 
   it("bootstraps missing control documents for legacy books before writing", async () => {
@@ -3286,6 +3377,63 @@ describe("PipelineRunner", () => {
       expect(chapterSummaries).not.toContain("# 章节摘要");
       expect(subplotBoard).toContain("# Subplot Board");
       expect(subplotBoard).not.toContain("# 支线进度板");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("persists Korean chapter headings during manual revise", async () => {
+    const { root, runner, state, bookId } = await createRunnerFixture();
+    const koreanBook = {
+      ...(await state.loadBookConfig(bookId)),
+      genre: "other",
+      language: "ko" as const,
+      chapterWordCount: 2200,
+    };
+
+    await state.saveBookConfig(bookId, koreanBook);
+    const storyDir = join(state.bookDir(bookId), "story");
+    const chaptersDir = join(state.bookDir(bookId), "chapters");
+
+    await Promise.all([
+      writeFile(join(storyDir, "current_focus.md"), "# 현재 집중\n\n## 이번 구간 핵심\n\n상회 추적을 밀어라.\n", "utf-8"),
+      writeFile(join(storyDir, "volume_outline.md"), "# 권차 개요\n\n## 제1화\n항구 빚 장부를 뒤진다.\n", "utf-8"),
+      writeFile(join(storyDir, "current_state.md"), "# 현재 상태\n", "utf-8"),
+      writeFile(join(storyDir, "pending_hooks.md"), "# 복선 풀\n", "utf-8"),
+      writeFile(join(storyDir, "chapter_summaries.md"), "# Chapter Summaries\n", "utf-8"),
+      writeFile(join(chaptersDir, "0001_회항.md"), "# 제1화 회항\n\n원본 본문.", "utf-8"),
+    ]);
+
+    await state.saveChapterIndex(bookId, [{
+      number: 1,
+      status: "audit-failed",
+      title: "회항",
+      wordCount: 4,
+      createdAt: "2026-04-20T00:00:00.000Z",
+      updatedAt: "2026-04-20T00:00:00.000Z",
+      auditIssues: ["issue"],
+      lengthWarnings: [],
+    }]);
+
+    vi.spyOn(ContinuityAuditor.prototype, "auditChapter").mockResolvedValue({
+      passed: false,
+      summary: "문제 있음",
+      issues: [{ severity: "critical", category: "연속성", description: "충돌", suggestion: "수정" }],
+    });
+    vi.spyOn(ReviserAgent.prototype, "reviseChapter").mockResolvedValue({
+      revisedContent: "수정된 본문.",
+      wordCount: 6,
+      fixedIssues: ["fixed"],
+      updatedState: "(상태 카드 미갱신)",
+      updatedLedger: "",
+      updatedHooks: "(복선 풀 미갱신)",
+    });
+
+    try {
+      await runner.reviseDraft(bookId, 1, "spot-fix");
+      const revised = await readFile(join(chaptersDir, "0001_회항.md"), "utf-8");
+      expect(revised).toContain("# 제1화 회항");
+      expect(revised).not.toContain("# 第1章");
     } finally {
       await rm(root, { recursive: true, force: true });
     }
