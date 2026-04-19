@@ -3,6 +3,9 @@ import { z } from "zod";
 export const PlatformSchema = z.enum(["tomato", "feilu", "qidian", "other"]);
 export type Platform = z.infer<typeof PlatformSchema>;
 
+export const WritingLanguageSchema = z.enum(["ko", "zh", "en"]);
+export type WritingLanguage = z.infer<typeof WritingLanguageSchema>;
+
 export const GenreSchema = z.string().min(1);
 export type Genre = z.infer<typeof GenreSchema>;
 
@@ -27,7 +30,7 @@ export const BookConfigSchema = z.object({
   status: BookStatusSchema,
   targetChapters: z.number().int().min(1).default(200),
   chapterWordCount: z.number().int().min(1000).default(3000),
-  language: z.enum(["zh", "en"]).optional(),
+  language: WritingLanguageSchema.optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   parentBookId: z.string().optional(),

@@ -1,10 +1,11 @@
 import { z } from "zod";
 import yaml from "js-yaml";
+import { WritingLanguageSchema } from "./book.js";
 
 export const GenreProfileSchema = z.object({
   name: z.string(),
   id: z.string(),
-  language: z.enum(["zh", "en"]).default("zh"),
+  language: WritingLanguageSchema.default("ko"),
   chapterTypes: z.array(z.string()),
   fatigueWords: z.array(z.string()),
   numericalSystem: z.boolean().default(false),
