@@ -5,6 +5,7 @@ import {
   countChapterLength,
   isOutsideHardRange,
   isOutsideSoftRange,
+  formatLengthCount,
 } from "../utils/length-metrics.js";
 
 describe("length metrics", () => {
@@ -14,6 +15,12 @@ describe("length metrics", () => {
 
   it("counts English chapter length using en_words", () => {
     expect(countChapterLength("He looked at the sky.", "en_words")).toBe(5);
+  });
+
+  it("formats length counts with language-specific units", () => {
+    expect(formatLengthCount(3200, "zh_chars", "zh")).toBe("3200字");
+    expect(formatLengthCount(3200, "zh_chars", "ko")).toBe("3200자");
+    expect(formatLengthCount(2200, "en_words", "en")).toBe("2200 words");
   });
 
   it("counts prose only for markdown-shaped Chinese chapters", () => {
