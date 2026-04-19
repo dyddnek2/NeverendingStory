@@ -17,6 +17,8 @@ import {
   retrieveMemorySelection,
 } from "../utils/memory-retrieval.js";
 
+type ProjectLanguage = NonNullable<BookConfig["language"]>;
+
 export interface ComposeChapterInput {
   readonly book: BookConfig;
   readonly bookDir: string;
@@ -110,7 +112,7 @@ export class ComposerAgent extends BaseAgent {
   private async collectSelectedContext(
     storyDir: string,
     plan: PlanChapterOutput,
-    language: "zh" | "en",
+  language: ProjectLanguage,
   ): Promise<ContextPackage["selectedContext"]> {
     const entries = await Promise.all([
       this.maybeContextSource(storyDir, "current_focus.md", "Current task focus for this chapter."),
@@ -305,7 +307,7 @@ export class ComposerAgent extends BaseAgent {
       readonly payoffTiming?: string;
       readonly notes: string;
     }>,
-    language: "zh" | "en",
+  language: ProjectLanguage,
   ): Promise<ContextPackage["selectedContext"]> {
     const targetHookIds = [
       ...new Set([
@@ -411,7 +413,7 @@ export class ComposerAgent extends BaseAgent {
   private describeHookAgendaRole(
     plan: PlanChapterOutput,
     hookId: string,
-    language: "zh" | "en",
+  language: ProjectLanguage,
   ): string {
     if (plan.intent.hookAgenda.eligibleResolve.includes(hookId)) {
       return language === "en" ? "payoff-ready debt" : "可兑现旧债";

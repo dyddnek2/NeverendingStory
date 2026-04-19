@@ -15,6 +15,8 @@ import { retrieveMemorySelection } from "../utils/memory-retrieval.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
+type ProjectLanguage = NonNullable<BookConfig["language"]>;
+
 export interface AnalyzeChapterInput {
   readonly book: BookConfig;
   readonly bookDir: string;
@@ -205,7 +207,7 @@ export class ChapterAnalyzerAgent extends BaseAgent {
     genreProfile: GenreProfile,
     genreBody: string,
     bookRulesBody: string,
-    language: "zh" | "en",
+  language: ProjectLanguage,
   ): string {
     if (language === "en") {
       const numericalBlock = genreProfile.numericalSystem
@@ -424,7 +426,7 @@ ${bookRulesBody ? `## 本书规则\n\n${bookRulesBody}` : ""}
   }
 
   private buildUserPrompt(params: {
-    readonly language: "zh" | "en";
+  readonly language: ProjectLanguage;
     readonly chapterNumber: number;
     readonly chapterContent: string;
     readonly chapterTitle?: string;
@@ -493,7 +495,7 @@ ${params.hooksBlock}${params.volumeSummariesBlock}${params.subplotBlock}${params
     chapterIntent: string,
     contextPackage: ContextPackage,
     ruleStack: RuleStack,
-    language: "zh" | "en",
+  language: ProjectLanguage,
   ): string {
     const selectedContext = contextPackage.selectedContext
       .map((entry) => `- ${entry.source}: ${entry.reason}${entry.excerpt ? ` | ${entry.excerpt}` : ""}`)
@@ -569,7 +571,7 @@ ${overrides}\n`;
       mood: string;
       chapterType: string;
     }>,
-    language: "zh" | "en",
+  language: ProjectLanguage,
   ): string {
     if (summaries.length === 0) {
       return this.missingFilePlaceholder(language);
@@ -606,7 +608,7 @@ ${overrides}\n`;
     return value.replace(/\|/g, "\\|").replace(/\n/g, "<br>");
   }
 
-  private async readFileOrDefault(path: string, language: "zh" | "en"): Promise<string> {
+  private async readFileOrDefault(path: string, language: ProjectLanguage): Promise<string> {
     try {
       return await readFile(path, "utf-8");
     } catch {
@@ -614,11 +616,11 @@ ${overrides}\n`;
     }
   }
 
-  private missingFilePlaceholder(language: "zh" | "en"): string {
+  private missingFilePlaceholder(language: ProjectLanguage): string {
     return language === "en" ? "(file not created yet)" : "(文件尚未创建)";
   }
 
-  private defaultChapterTitle(chapterNumber: number, language: "zh" | "en"): string {
+  private defaultChapterTitle(chapterNumber: number, language: ProjectLanguage): string {
     return language === "en" ? `Chapter ${chapterNumber}` : `第${chapterNumber}章`;
   }
 }
