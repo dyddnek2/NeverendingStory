@@ -176,6 +176,79 @@ describe("ContinuityAuditor", () => {
     }
   });
 
+  it("uses Korean audit prompts when the book language is Korean", async () => {
+    const root = await mkdtemp(join(tmpdir(), "inkos-auditor-ko-prompt-test-"));
+    const bookDir = join(root, "book");
+    const storyDir = join(bookDir, "story");
+    await mkdir(storyDir, { recursive: true });
+
+    await Promise.all([
+      writeFile(
+        join(bookDir, "book.json"),
+        JSON.stringify({
+          id: "korean-book",
+          title: "한국어 책",
+          genre: "other",
+          platform: "naver",
+          chapterWordCount: 800,
+          targetChapters: 60,
+          status: "active",
+          language: "ko",
+          createdAt: "2026-04-20T00:00:00.000Z",
+          updatedAt: "2026-04-20T00:00:00.000Z",
+        }, null, 2),
+        "utf-8",
+      ),
+      writeFile(join(storyDir, "current_state.md"), "# 현재 상태\n\n- 윤서가 열쇠를 숨기고 있다.\n", "utf-8"),
+      writeFile(join(storyDir, "pending_hooks.md"), "# 복선 풀\n", "utf-8"),
+      writeFile(join(storyDir, "chapter_summaries.md"), "# Chapter Summaries\n", "utf-8"),
+      writeFile(join(storyDir, "subplot_board.md"), "# 서브플롯 보드\n", "utf-8"),
+      writeFile(join(storyDir, "emotional_arcs.md"), "# 감정선\n", "utf-8"),
+      writeFile(join(storyDir, "character_matrix.md"), "# 인물 매트릭스\n", "utf-8"),
+      writeFile(join(storyDir, "volume_outline.md"), "# 권차 개요\n\n## Chapter 1\n빚 문서를 추적한다.\n", "utf-8"),
+      writeFile(join(storyDir, "style_guide.md"), "# 문체 가이드\n\n- 한국어 문장 호흡을 짧게 유지한다.\n", "utf-8"),
+    ]);
+
+    const auditor = new ContinuityAuditor({
+      client: {
+        provider: "openai",
+        apiFormat: "chat",
+        stream: false,
+        defaults: {
+          temperature: 0.7,
+          maxTokens: 4096,
+          thinkingBudget: 0, maxTokensCap: null,
+          extra: {},
+        },
+      },
+      model: "test-model",
+      projectRoot: root,
+    });
+
+    const chatSpy = vi.spyOn(ContinuityAuditor.prototype as never, "chat" as never).mockResolvedValue({
+      content: JSON.stringify({ passed: true, issues: [], summary: "ok" }),
+      usage: ZERO_USAGE,
+    });
+
+    try {
+      await auditor.auditChapter(bookDir, "본문", 1, "other");
+
+      const messages = chatSpy.mock.calls[0]?.[0] as ReadonlyArray<{ content: string }> | undefined;
+      const systemPrompt = messages?.[0]?.content ?? "";
+      const userPrompt = messages?.[1]?.content ?? "";
+
+      expect(systemPrompt).toContain("반드시 한국어로 작성한다");
+      expect(systemPrompt).toContain("복선 점검");
+      expect(systemPrompt).toContain("개요 이탈 점검");
+      expect(userPrompt).toContain("## 현재 상태 카드");
+      expect(userPrompt).toContain("## 심사 대상 본문");
+      expect(userPrompt).not.toContain("请审查第1章");
+      expect(userPrompt).not.toContain("Review chapter 1.");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("uses selected summary and hook evidence instead of full long-history markdown in governed mode", async () => {
     const root = await mkdtemp(join(tmpdir(), "inkos-auditor-test-"));
     const bookDir = join(root, "book");

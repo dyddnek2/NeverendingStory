@@ -87,9 +87,9 @@ export function resolveHookPayoffTiming(params: {
 
 export function localizeHookPayoffTiming(
   timing: HookPayoffTiming,
-  language: "zh" | "en",
+  language: "ko" | "zh" | "en",
 ): string {
-  return LABELS[language][timing];
+  return LABELS[language === "en" ? "en" : "zh"][timing];
 }
 
 export function describeHookLifecycle(params: {
