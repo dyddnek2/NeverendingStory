@@ -10,7 +10,7 @@ import {
 
 export function renderHooksProjection(
   state: HooksState,
-  language: "zh" | "en" = "zh",
+  language: "ko" | "zh" | "en" = "zh",
 ): string {
   const title = language === "en" ? "# Pending Hooks" : "# 伏笔池";
   const headers = language === "en"
@@ -47,7 +47,7 @@ export function renderHooksProjection(
 
 export function renderChapterSummariesProjection(
   state: ChapterSummariesState,
-  language: "zh" | "en" = "zh",
+  language: "ko" | "zh" | "en" = "zh",
 ): string {
   const title = language === "en" ? "# Chapter Summaries" : "# 章节摘要";
   const headers = language === "en"
@@ -80,7 +80,7 @@ export function renderChapterSummariesProjection(
 
 export function renderCurrentStateProjection(
   state: CurrentStateState,
-  language: "zh" | "en" = "zh",
+  language: "ko" | "zh" | "en" = "zh",
 ): string {
   const layout = language === "en"
     ? {
