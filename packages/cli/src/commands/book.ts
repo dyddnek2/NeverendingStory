@@ -25,7 +25,7 @@ bookCommand
   .option("--target-chapters <n>", "Target chapter count", "200")
   .option("--chapter-words <n>", "Words per chapter", "3000")
   .option("--brief <path>", "Path to creative brief file (.md/.txt) — Architect builds from your ideas instead of generating from scratch")
-  .option("--lang <language>", "Writing language: zh (Chinese) or en (English). Defaults from genre.")
+  .option("--lang <language>", "Writing language: ko (Korean), zh (Chinese), or en (English). Defaults to project language, which is ko by default.")
   .option("--json", "Output JSON")
   .action(async (opts) => {
     try {
@@ -33,7 +33,7 @@ bookCommand
 
       const bookId = opts.title
         .toLowerCase()
-        .replace(/[^a-z0-9\u4e00-\u9fff]/g, "-")
+        .replace(/[^a-z0-9\u4e00-\u9fff\uac00-\ud7af]/g, "-")
         .replace(/-+/g, "-")
         .slice(0, 30);
 
@@ -109,7 +109,7 @@ bookCommand
   .option("--chapter-words <n>", "Words per chapter")
   .option("--target-chapters <n>", "Target chapter count")
   .option("--status <status>", "Book status (outlining/active/paused/completed)")
-  .option("--lang <language>", "Writing language: zh or en")
+  .option("--lang <language>", "Writing language: ko, zh, or en")
   .option("--json", "Output JSON")
   .action(async (bookIdArg: string | undefined, opts) => {
     try {

@@ -11,6 +11,7 @@ import {
   formatWriteNextComplete,
   formatWriteNextProgress,
   formatWriteNextResultLines,
+  resolveCliLanguage,
 } from "../localization.js";
 
 describe("CLI localization", () => {
@@ -44,6 +45,21 @@ describe("CLI localization", () => {
       "  审计：通过",
       "  自动修正：已执行（已修复关键问题）",
       "  状态：ready-for-review",
+    ]);
+
+    expect(formatWriteNextResultLines("ko", {
+      chapterNumber: 3,
+      title: "눈보라 밤",
+      wordCount: 3200,
+      status: "ready-for-review",
+      revised: false,
+      issues: [],
+      auditPassed: true,
+    })).toEqual([
+      "  3화: 눈보라 밤",
+      "  분량: 3200자",
+      "  검토: 통과",
+      "  상태: ready-for-review",
     ]);
 
     expect(formatWriteNextProgress("en", 2, 3, "harbor"))
@@ -85,6 +101,20 @@ describe("CLI localization", () => {
       '运行 "inkos write next shan-he" 继续写作。',
     ]);
 
+    expect(formatImportChaptersComplete("ko", {
+      importedCount: 8,
+      totalWords: 45678,
+      nextChapter: 13,
+      continueBookId: "hangang",
+    })).toEqual([
+      "가져오기 완료:",
+      "  가져온 화 수: 8",
+      "  총 분량: 45678자",
+      "  다음 화 번호: 13",
+      "",
+      '"inkos write next hangang"로 이어서 집필하세요.',
+    ]);
+
     expect(formatImportChaptersDiscovery("en", 10, "harbor"))
       .toBe('Found 10 chapters to import into "harbor".');
     expect(formatImportChaptersResume("en", 6)).toBe("Resuming from chapter 6.");
@@ -117,5 +147,15 @@ describe("CLI localization", () => {
       "Canon imported: story/parent_canon.md",
       "Writer and auditor will auto-detect this file for spinoff mode.",
     ]);
+  });
+
+  it("defaults CLI localization to Korean and keeps zh/en explicit", () => {
+    expect(resolveCliLanguage()).toBe("ko");
+    expect(resolveCliLanguage("ko")).toBe("ko");
+    expect(resolveCliLanguage("zh")).toBe("zh");
+    expect(resolveCliLanguage("en")).toBe("en");
+
+    expect(formatBookCreateCreated("ko", "hangang")).toBe("생성된 책: hangang");
+    expect(formatBookCreateNextStep("ko", "hangang")).toBe("다음 단계: inkos write next hangang");
   });
 });
