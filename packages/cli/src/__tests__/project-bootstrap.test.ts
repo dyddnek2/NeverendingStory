@@ -20,12 +20,13 @@ describe("project bootstrap", () => {
   it("creates a minimal Studio-first project when none exists", async () => {
     const { ensureProjectDirectoryInitialized } = await import("../project-bootstrap.js");
 
-    const initialized = await ensureProjectDirectoryInitialized(tempDir, { language: "zh" });
+    const initialized = await ensureProjectDirectoryInitialized(tempDir, { language: "ko" });
 
     expect(initialized).toBe(true);
     const config = JSON.parse(await readFile(join(tempDir, "inkos.json"), "utf-8"));
     expect(config.name).toMatch(/^inkos-bootstrap-/);
     expect(config.version).toBe("0.1.0");
+    expect(config.language).toBe("ko");
     expect(config.llm.configSource).toBe("studio");
     expect(config.llm.service).toBe("custom");
     expect(config.llm.model).toBe("");
@@ -39,7 +40,7 @@ describe("project bootstrap", () => {
     await writeFile(join(tempDir, ".gitignore"), "CUSTOM\n", "utf-8");
 
     const { ensureProjectDirectoryInitialized } = await import("../project-bootstrap.js");
-    await ensureProjectDirectoryInitialized(tempDir, { language: "zh" });
+    await ensureProjectDirectoryInitialized(tempDir, { language: "ko" });
 
     await expect(readFile(join(tempDir, ".env"), "utf-8")).resolves.toBe("EXISTING=1\n");
     await expect(readFile(join(tempDir, ".gitignore"), "utf-8")).resolves.toBe("CUSTOM\n");
@@ -49,6 +50,6 @@ describe("project bootstrap", () => {
     await writeFile(join(tempDir, "inkos.json"), "{}\n", "utf-8");
     const { ensureProjectDirectoryInitialized } = await import("../project-bootstrap.js");
 
-    await expect(ensureProjectDirectoryInitialized(tempDir, { language: "zh" })).resolves.toBe(false);
+    await expect(ensureProjectDirectoryInitialized(tempDir, { language: "ko" })).resolves.toBe(false);
   });
 });

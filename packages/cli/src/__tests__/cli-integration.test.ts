@@ -91,11 +91,14 @@ describe("CLI integration", () => {
     it("initializes project in current directory", () => {
       const output = run(["init"]);
       expect(output).toContain("Project initialized");
+      expect(output).toContain("inkos book create --title '내 소설'");
+      expect(output).not.toContain("我的小说");
     });
 
     it("creates inkos.json with correct structure", async () => {
       const raw = await readFile(join(projectDir, "inkos.json"), "utf-8");
       const config = JSON.parse(raw);
+      expect(config.language).toBe("ko");
       expect(config.llm).toBeDefined();
       expect(config.llm.provider).toBeDefined();
       expect(config.llm.model).toBeDefined();

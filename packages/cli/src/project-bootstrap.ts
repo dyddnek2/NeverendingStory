@@ -3,7 +3,7 @@ import { basename, join } from "node:path";
 import { GLOBAL_ENV_PATH } from "./utils.js";
 
 export interface ProjectBootstrapOptions {
-  readonly language?: "zh" | "en";
+  readonly language?: "ko" | "zh" | "en";
   readonly overwriteSupportFiles?: boolean;
 }
 
@@ -32,7 +32,7 @@ async function writeMaybe(path: string, content: string, overwrite: boolean): Pr
   await writeFile(path, content, "utf-8");
 }
 
-function buildProjectConfig(projectDir: string, language: "zh" | "en") {
+function buildProjectConfig(projectDir: string, language: "ko" | "zh" | "en") {
   return {
     name: basename(projectDir),
     version: "0.1.0" as const,
@@ -97,7 +97,7 @@ export async function initializeProjectDirectory(
   projectDir: string,
   options: ProjectBootstrapOptions = {},
 ): Promise<void> {
-  const language = options.language ?? "zh";
+  const language = options.language ?? "ko";
   const overwriteSupportFiles = options.overwriteSupportFiles ?? true;
   const configPath = join(projectDir, "inkos.json");
 

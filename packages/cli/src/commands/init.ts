@@ -7,23 +7,25 @@ import { initializeProjectDirectory } from "../project-bootstrap.js";
 export const initCommand = new Command("init")
   .description("Initialize an InkOS project (current directory by default)")
   .argument("[name]", "Project name (creates subdirectory). Omit to init current directory.")
-  .option("--lang <language>", "Default writing language: zh (Chinese) or en (English)", "zh")
+  .option("--lang <language>", "Default writing language: ko (Korean), zh (Chinese), or en (English)", "ko")
   .action(async (name: string | undefined, opts: { lang?: string }) => {
     const projectDir = name ? resolve(process.cwd(), name) : process.cwd();
 
     try {
       await mkdir(projectDir, { recursive: true });
       await initializeProjectDirectory(projectDir, {
-        language: (opts.lang === "en" ? "en" : "zh"),
+        language: (opts.lang === "en" || opts.lang === "zh" || opts.lang === "ko") ? opts.lang : "ko",
         overwriteSupportFiles: true,
       });
 
       log(`Project initialized at ${projectDir}`);
       log("");
-      const isEnglish = (opts.lang ?? "zh") === "en";
-      const exampleCreate = isEnglish
+      const language = (opts.lang ?? "ko");
+      const exampleCreate = language === "en"
         ? "  inkos book create --title 'My Novel' --genre progression --platform royalroad --lang en"
-        : "  inkos book create --title '我的小说' --genre xuanhuan --platform tomato";
+        : language === "zh"
+          ? "  inkos book create --title '我的小说' --genre xuanhuan --platform tomato"
+          : "  inkos book create --title '내 소설' --genre 무협 --platform tomato";
       if (global) {
         log("Global LLM config detected. Ready to go!");
         log("");
