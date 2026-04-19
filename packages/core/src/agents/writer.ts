@@ -1,5 +1,5 @@
 import { BaseAgent } from "./base.js";
-import type { BookConfig } from "../models/book.js";
+import type { BookConfig, WritingLanguage } from "../models/book.js";
 import type { GenreProfile } from "../models/genre-profile.js";
 import type { BookRules } from "../models/book-rules.js";
 import { buildWriterSystemPrompt, type FanficContext } from "./writer-prompts.js";
@@ -36,6 +36,8 @@ import { analyzeHookHealth } from "../utils/hook-health.js";
 import { buildEnglishVarianceBrief } from "../utils/long-span-fatigue.js";
 import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
+
+type ProjectLanguage = WritingLanguage;
 
 export interface WriteChapterInput {
   readonly book: BookConfig;
@@ -103,15 +105,15 @@ export class WriterAgent extends BaseAgent {
     return "writer";
   }
 
-  private localize(language: "zh" | "en", messages: { zh: string; en: string }): string {
+  private localize(language: ProjectLanguage, messages: { zh: string; en: string }): string {
     return language === "en" ? messages.en : messages.zh;
   }
 
-  private logInfo(language: "zh" | "en", messages: { zh: string; en: string }): void {
+  private logInfo(language: ProjectLanguage, messages: { zh: string; en: string }): void {
     this.ctx.logger?.info(this.localize(language, messages));
   }
 
-  private logWarn(language: "zh" | "en", messages: { zh: string; en: string }): void {
+  private logWarn(language: ProjectLanguage, messages: { zh: string; en: string }): void {
     this.ctx.logger?.warn(this.localize(language, messages));
   }
 
@@ -583,6 +585,7 @@ export class WriterAgent extends BaseAgent {
       selectedEvidenceBlock: params.selectedEvidenceBlock,
       governedControlBlock,
       validationFeedback: params.validationFeedback,
+      language: resolvedLang,
     });
 
     // Settler outputs all truth files — scale with content size
@@ -642,7 +645,7 @@ export class WriterAgent extends BaseAgent {
     bookDir: string,
     output: WriteChapterOutput,
     numericalSystem: boolean = true,
-    language: "zh" | "en" = "zh",
+    language: ProjectLanguage = "zh",
   ): Promise<void> {
     const chaptersDir = join(bookDir, "chapters");
     const storyDir = join(bookDir, "story");
@@ -707,7 +710,7 @@ export class WriterAgent extends BaseAgent {
     readonly dialogueFingerprints?: string;
     readonly relevantSummaries?: string;
     readonly parentCanon?: string;
-    readonly language?: "zh" | "en";
+  readonly language?: ProjectLanguage;
   }): string {
     const contextBlock = params.externalContext
       ? `\n## 外部指令\n以下是来自外部系统的创作指令，请在本章中融入：\n\n${params.externalContext}\n`
@@ -812,7 +815,7 @@ ${lengthRequirementBlock}
     readonly ruleStack: RuleStack;
     readonly trace?: ChapterTrace;
     readonly lengthSpec: LengthSpec;
-    readonly language?: "zh" | "en";
+  readonly language?: ProjectLanguage;
     readonly varianceBrief?: string;
     readonly selectedEvidenceBlock?: string;
   }): string {
@@ -953,7 +956,7 @@ ${lengthRequirementBlock}
     chapterIntent: string,
     contextPackage: ContextPackage,
     ruleStack: RuleStack,
-    language: "zh" | "en",
+    language: ProjectLanguage,
   ): string {
     const selectedContext = contextPackage.selectedContext
       .map((entry) => `- ${entry.source}: ${entry.reason}${entry.excerpt ? ` | ${entry.excerpt}` : ""}`)
@@ -995,7 +998,7 @@ ${selectedContext || "- none"}
 ${overrides}\n`;
   }
 
-  private buildLengthRequirementBlock(lengthSpec: LengthSpec, language: "zh" | "en"): string {
+  private buildLengthRequirementBlock(lengthSpec: LengthSpec, language: ProjectLanguage): string {
     if (language === "en") {
       return `Requirements:
 - Target length: ${lengthSpec.target} words
@@ -1047,7 +1050,7 @@ ${overrides}\n`;
   async saveNewTruthFiles(
     bookDir: string,
     output: WriteChapterOutput,
-    language: "zh" | "en" = "zh",
+    language: ProjectLanguage = "zh",
   ): Promise<void> {
     const storyDir = join(bookDir, "story");
     const writes: Array<Promise<void>> = [];
@@ -1151,7 +1154,7 @@ ${overrides}\n`;
   private async buildRuntimeStateArtifactsIfPresent(
     bookDir: string,
     delta: RuntimeStateDelta | undefined,
-    language: "zh" | "en",
+    language: ProjectLanguage,
     authoritativeChapterNumber?: number,
     allowReapply?: boolean,
   ): Promise<RuntimeStateArtifacts | null> {
@@ -1170,7 +1173,7 @@ ${overrides}\n`;
   private async resolveRuntimeStateArtifactsForOutput(
     bookDir: string,
     output: WriteChapterOutput,
-    language: "zh" | "en",
+    language: ProjectLanguage,
   ): Promise<RuntimeStateArtifacts | null> {
     if (!output.runtimeStateDelta) return null;
     const safeDelta = this.normalizeRuntimeStateDeltaChapter(
@@ -1203,7 +1206,7 @@ ${overrides}\n`;
   private async appendChapterSummary(
     storyDir: string,
     summary: string,
-    language: "zh" | "en",
+    language: ProjectLanguage,
   ): Promise<void> {
     const summaryPath = join(storyDir, "chapter_summaries.md");
     let existing = "";

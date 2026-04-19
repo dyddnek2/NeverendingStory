@@ -1,4 +1,4 @@
-import type { BookConfig, FanficMode } from "../models/book.js";
+import type { BookConfig, FanficMode, WritingLanguage } from "../models/book.js";
 import type { GenreProfile } from "../models/genre-profile.js";
 import type { BookRules } from "../models/book-rules.js";
 import type { LengthSpec } from "../models/length-governance.js";
@@ -11,6 +11,8 @@ export interface FanficContext {
   readonly fanficMode: FanficMode;
   readonly allowedDeviations: ReadonlyArray<string>;
 }
+
+type PromptLanguage = WritingLanguage;
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -27,19 +29,20 @@ export function buildWriterSystemPrompt(
   chapterNumber?: number,
   mode: "full" | "creative" = "full",
   fanficContext?: FanficContext,
-  languageOverride?: "zh" | "en",
+  languageOverride?: PromptLanguage,
   inputProfile: "legacy" | "governed" = "legacy",
   lengthSpec?: LengthSpec,
 ): string {
-  const isEnglish = (languageOverride ?? genreProfile.language) === "en";
+  const language = languageOverride ?? book.language ?? genreProfile.language;
+  const isEnglish = language === "en";
   const governed = inputProfile === "governed";
-  const resolvedLengthSpec = lengthSpec ?? buildLengthSpec(book.chapterWordCount, isEnglish ? "en" : "zh");
+  const resolvedLengthSpec = lengthSpec ?? buildLengthSpec(book.chapterWordCount, language);
 
   const outputSection = mode === "creative"
-    ? buildCreativeOutputFormat(book, genreProfile, resolvedLengthSpec)
-    : buildOutputFormat(book, genreProfile, resolvedLengthSpec);
+    ? buildCreativeOutputFormat(book, genreProfile, resolvedLengthSpec, language)
+    : buildOutputFormat(book, genreProfile, resolvedLengthSpec, language);
 
-  const sections = isEnglish
+  const sections = language === "en"
     ? [
         buildEnglishGenreIntro(book, genreProfile),
         buildEnglishCoreRules(book),
@@ -58,6 +61,23 @@ export function buildWriterSystemPrompt(
         !governed ? buildEnglishPreWriteChecklist(book, genreProfile) : "",
         outputSection,
       ]
+    : language === "ko"
+      ? [
+          buildKoreanGenreIntro(book, genreProfile),
+          buildKoreanCoreRules(resolvedLengthSpec),
+          buildGovernedInputContract("ko", governed),
+          buildLengthGuidance(resolvedLengthSpec, "ko"),
+          buildKoreanGenreRules(genreProfile, genreBody),
+          buildKoreanProtagonistRules(bookRules),
+          buildKoreanBookRulesBody(bookRulesBody),
+          buildKoreanStyleGuide(styleGuide),
+          buildKoreanStyleFingerprint(styleFingerprint),
+          fanficContext ? buildFanficCanonSection(fanficContext.fanficCanon, fanficContext.fanficMode) : "",
+          fanficContext ? buildCharacterVoiceProfiles(fanficContext.fanficCanon) : "",
+          fanficContext ? buildFanficModeInstructions(fanficContext.fanficMode, fanficContext.allowedDeviations) : "",
+          !governed ? buildKoreanPreWriteChecklist(book, genreProfile) : "",
+          outputSection,
+        ]
     : [
         buildGenreIntro(book, genreProfile),
         buildCoreRules(resolvedLengthSpec),
@@ -94,7 +114,11 @@ function buildGenreIntro(book: BookConfig, gp: GenreProfile): string {
   return `你是一位专业的${gp.name}网络小说作家。你为${book.platform}平台写作。`;
 }
 
-function buildGovernedInputContract(language: "zh" | "en", governed: boolean): string {
+function buildKoreanGenreIntro(book: BookConfig, gp: GenreProfile): string {
+  return `당신은 ${gp.name} 장르에 능숙한 한국 웹소설 작가다. 이번 작품은 ${book.platform} 플랫폼 기준의 한국어 소설로 쓴다.`;
+}
+
+function buildGovernedInputContract(language: "ko" | "zh" | "en", governed: boolean): string {
   if (!governed) return "";
 
   if (language === "en") {
@@ -107,8 +131,22 @@ function buildGovernedInputContract(language: "zh" | "en", governed: boolean): s
 - If an English Variance Brief is provided, obey it: avoid the listed phrase/opening/ending patterns and satisfy the scene obligation.
 - If Hook Debt Briefs are provided, they contain the ORIGINAL SEED TEXT from the chapter where each hook was planted. Use this text to write a continuation or payoff that feels connected to what the reader already saw — not a vague mention, but a scene that builds on the specific promise.
 - When the explicit hook agenda names an eligible resolve target, land a concrete payoff beat that answers the reader's original question from the seed chapter.
-- When stale debt is present, do not open sibling hooks casually; clear pressure from old promises before minting fresh debt.
-- In multi-character scenes, include at least one resistance-bearing exchange instead of reducing the beat to summary or explanation.`;
+      - When stale debt is present, do not open sibling hooks casually; clear pressure from old promises before minting fresh debt.
+      - In multi-character scenes, include at least one resistance-bearing exchange instead of reducing the beat to summary or explanation.`;
+  }
+
+  if (language === "ko") {
+    return `## 입력 거버넌스 계약
+
+- 이번 장면의 직접 지시는 제공된 chapter intent 와 composed context package를 최우선으로 따른다.
+- 볼륨 아웃라인은 기본 계획일 뿐, 현재 장면 지시보다 절대 우선하지 않는다.
+- runtime rule stack 에 L4 -> L3 active override 가 기록되어 있으면, 현재 작업 의도를 먼저 살리고 계획을 국소 조정한다.
+- 절대 넘지 말아야 할 것은 하드 가드레일뿐이다: 정전 설정, 연속성 사실, 명시적 금지사항.
+- English Variance Brief 가 제공되면 나열된 반복 표현, 반복 도입, 반복 마무리 패턴을 피하고 scene obligation 을 충족한다.
+- Hook Debt Brief 가 제공되면 각 복선이 처음 심어진 장면의 원문이 들어 있다. 그 원문이 약속한 감정과 사건을 이어 받아, 독자가 이미 본 약속이 실제로 이어지는 장면으로 써라.
+- explicit hook agenda 에 회수 대상이 있으면, 이번 장 안에서 독자의 원래 질문에 답하는 구체적 보상 장면을 반드시 넣는다.
+- stale debt 가 남아 있으면 비슷한 새 떡밥을 가볍게 열지 말고, 오래된 약속의 압력을 먼저 처리한다.
+- 여러 인물이 함께 있는 장면에서는 설명으로 넘기지 말고, 최소 한 번은 저항이 오가는 직접 충돌을 넣어라.`;
   }
 
   return `## 输入治理契约
@@ -124,13 +162,21 @@ function buildGovernedInputContract(language: "zh" | "en", governed: boolean): s
 - 多角色场景里，至少给出一轮带阻力的直接交锋，不要把人物关系写成纯解释或纯总结。`;
 }
 
-function buildLengthGuidance(lengthSpec: LengthSpec, language: "zh" | "en"): string {
+function buildLengthGuidance(lengthSpec: LengthSpec, language: "ko" | "zh" | "en"): string {
   if (language === "en") {
     return `## Length Guidance
 
 - Target length: ${lengthSpec.target} words
 - Acceptable range: ${lengthSpec.softMin}-${lengthSpec.softMax} words
 - Hard range: ${lengthSpec.hardMin}-${lengthSpec.hardMax} words`;
+  }
+
+  if (language === "ko") {
+    return `## 분량 가이드
+
+- 목표 분량: ${lengthSpec.target}자
+- 권장 범위: ${lengthSpec.softMin}-${lengthSpec.softMax}자
+- 하드 범위: ${lengthSpec.hardMin}-${lengthSpec.hardMax}자`;
   }
 
   return `## 字数治理
@@ -199,6 +245,43 @@ function buildCoreRules(lengthSpec: LengthSpec): string {
 - 【硬性禁令】全文严禁出现"不是……而是……""不是……，是……""不是A，是B"句式，出现即判定违规。改用直述句
 - 【硬性禁令】全文严禁出现破折号"——"，用逗号或句号断句
 - 正文中禁止出现hook_id/账本式数据（如"余量由X%降到Y%"），数值结算只放POST_SETTLEMENT`;
+}
+
+function buildKoreanCoreRules(lengthSpec: LengthSpec): string {
+  return `## 핵심 규칙
+
+1. 한국어 원문처럼 자연스럽게 쓴다. 번역투 문장, 직역된 한자어 문장, 설명문 톤을 경계한다.
+2. 목표 분량은 ${lengthSpec.target}자이며, 권장 범위는 ${lengthSpec.softMin}-${lengthSpec.softMax}자다.
+3. 문단은 모바일 가독성을 우선해 짧고 또렷하게 끊는다.
+4. 장면마다 새로운 정보, 감정 변화, 이해관계 변동 중 하나 이상을 남긴다.
+
+## 인물 운용 원칙
+
+- 인물의 행동은 과거 경험, 현재 이해관계, 성격의 결에서 나온다.
+- 조연도 각자의 욕망과 계산이 있어야 하며, 주인공에게 쉽게 끌려다니는 도구처럼 쓰지 않는다.
+- 인물마다 말투, 분노 방식, 타협 방식이 분명히 달라야 한다.
+- 관계 변화는 사건과 선택의 누적으로 설득한다. 갑작스러운 충성, 돌연한 배신, 근거 없는 호감은 금지한다.
+
+## 서사 운영 원칙
+
+- 설명보다 장면을 먼저 쓴다. 감정은 행동과 반응으로 보여 준다.
+- 대화가 가능한 장면이면 갈등과 정보 전달을 대사와 맞부딪힘으로 처리한다.
+- 배경 설명은 필요한 만큼만 두고, 세계관 강의를 길게 늘어놓지 않는다.
+- 장면 전환에는 시간, 장소, 감정선의 연결고리를 남긴다.
+- 장 끝에는 다음 화를 읽게 만드는 질문, 압박, 반전, 불안 중 하나를 남긴다.
+
+## 문장 제약
+
+- 같은 문장 구조와 같은 주어 시작을 연달아 반복하지 않는다.
+- 추상 형용사 대신 동작, 감각, 구체 명사를 써서 장면을 세운다.
+- 군중 반응을 한 덩어리로 뭉개지 말고, 한두 인물의 구체적 반응으로 치환한다.
+- 서술자가 독자 대신 결론을 내려 주지 않는다. 판단은 장면이 하게 둔다.
+
+## 금지 사항
+
+- 본문에서 메타 해설, 작가 코멘트, 분석 보고서 같은 표현을 쓰지 않는다.
+- 반복 접속사와 상투적 감탄으로 억지 전환을 만들지 않는다.
+- hook_id 나 장부식 수치 데이터는 본문에 쓰지 말고 필요한 경우 POST_SETTLEMENT 에만 둔다.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -481,6 +564,77 @@ function buildStyleFingerprint(fingerprint?: string): string {
 ${fingerprint}`;
 }
 
+function buildKoreanGenreRules(gp: GenreProfile, genreBody: string): string {
+  const fatigueLine = gp.fatigueWords.length > 0
+    ? `- 고피로 표현(${gp.fatigueWords.join(", ")})은 한 화에서 최대 1회만 사용한다`
+    : "";
+
+  const chapterTypesLine = gp.chapterTypes.length > 0
+    ? `집필 전에 이번 화의 장면 성격을 먼저 정한다:\n${gp.chapterTypes.map((t) => `- ${t}`).join("\n")}`
+    : "";
+
+  const pacingLine = gp.pacingRule
+    ? `- 전개 리듬 규칙: ${gp.pacingRule}`
+    : "";
+
+  return [
+    `## 장르 규칙 (${gp.name})`,
+    fatigueLine,
+    pacingLine,
+    chapterTypesLine,
+    genreBody,
+  ].filter(Boolean).join("\n\n");
+}
+
+function buildKoreanProtagonistRules(bookRules: BookRules | null): string {
+  if (!bookRules?.protagonist) return "";
+
+  const protagonist = bookRules.protagonist;
+  const lines = [`## 주인공 고정 규칙 (${protagonist.name})`];
+
+  if (protagonist.personalityLock.length > 0) {
+    lines.push(`\n성격 고정축: ${protagonist.personalityLock.join(", ")}`);
+  }
+  if (protagonist.behavioralConstraints.length > 0) {
+    lines.push("\n행동 제약:");
+    for (const constraint of protagonist.behavioralConstraints) {
+      lines.push(`- ${constraint}`);
+    }
+  }
+
+  if (bookRules.prohibitions.length > 0) {
+    lines.push("\n작품 금지사항:");
+    for (const prohibition of bookRules.prohibitions) {
+      lines.push(`- ${prohibition}`);
+    }
+  }
+
+  if (bookRules.genreLock?.forbidden && bookRules.genreLock.forbidden.length > 0) {
+    lines.push(`\n금지 표현/전개: ${bookRules.genreLock.forbidden.join(", ")}`);
+  }
+
+  return lines.join("\n");
+}
+
+function buildKoreanBookRulesBody(body: string): string {
+  if (!body) return "";
+  return `## 작품 전용 규칙\n\n${body}`;
+}
+
+function buildKoreanStyleGuide(styleGuide: string): string {
+  if (!styleGuide || styleGuide === "(文件尚未创建)") return "";
+  return `## 문체 가이드\n\n${styleGuide}`;
+}
+
+function buildKoreanStyleFingerprint(fingerprint?: string): string {
+  if (!fingerprint) return "";
+  return `## 문체 지문 (모방 목표)
+
+아래는 참고 텍스트에서 추출한 문체 특징이다. 출력은 이 감각과 리듬을 최대한 가깝게 따라간다.
+
+${fingerprint}`;
+}
+
 // ---------------------------------------------------------------------------
 // Pre-write checklist
 // ---------------------------------------------------------------------------
@@ -515,11 +669,44 @@ function buildPreWriteChecklist(book: BookConfig, gp: GenreProfile): string {
   return lines.join("\n");
 }
 
+function buildKoreanPreWriteChecklist(book: BookConfig, gp: GenreProfile): string {
+  let idx = 1;
+  const lines = [
+    "## 집필 전 체크리스트",
+    "",
+    `${idx++}. 이번 화가 아웃라인의 어느 지점을 전진시키는지 한 문장으로 못 박았는가?`,
+    `${idx++}. 주인공이 지금 가장 먼저 붙잡을 이해관계와 손익은 무엇인가?`,
+    `${idx++}. 갈등의 첫 행동을 누가 왜 시작하는가?`,
+    `${idx++}. 조연과 적대 인물도 각자의 요구, 두려움, 대응 수단을 갖고 있는가?`,
+    `${idx++}. 인물마다 알고 있는 정보와 모르는 정보가 분명히 갈려 있는가?`,
+    `${idx++}. 장 끝에서 독자가 다음 화를 넘길 이유가 남는가?`,
+  ];
+
+  if (gp.numericalSystem) {
+    lines.push(`${idx++}. 이번 화의 보상이 자원, 지위, 관계 변화, 회수된 복선으로 구체화되는가?`);
+  }
+
+  lines.push(
+    `${idx++}. 일상 장면이 있다면 이후 갈등이나 복선에 실제로 연결되는가?`,
+    `${idx++}. 본편 목표에서 벗어난 장면이 2~3화 이상 길게 새지 않는가?`,
+    `${idx++}. 최근 몇 화 안에 감정 보상이나 작은 쾌감 포인트가 배치되어 있는가?`,
+    `${idx++}. 인물의 행동이 이미 세운 성격선과 충돌하지 않는가?`,
+    `${idx++}. 시점과 장면의 중심 인물이 명확한가?`,
+    `${idx++}. 답이 흐릿하면 본문부터 쓰지 말고 논리 사슬을 먼저 보강한다`,
+  );
+
+  return lines.join("\n");
+}
+
 // ---------------------------------------------------------------------------
 // Creative-only output format (no settlement blocks)
 // ---------------------------------------------------------------------------
 
-function buildCreativeOutputFormat(book: BookConfig, gp: GenreProfile, lengthSpec: LengthSpec): string {
+function buildCreativeOutputFormat(book: BookConfig, gp: GenreProfile, lengthSpec: LengthSpec, language: PromptLanguage): string {
+  if (language === "ko") {
+    return buildKoreanCreativeOutputFormat(gp, lengthSpec);
+  }
+
   const resourceRow = gp.numericalSystem
     ? "| 当前资源总量 | X | 与账本一致 |\n| 本章预计增量 | +X（来源） | 无增量写+0 |"
     : "";
@@ -554,7 +741,11 @@ ${preWriteTable}
 // Output format
 // ---------------------------------------------------------------------------
 
-function buildOutputFormat(book: BookConfig, gp: GenreProfile, lengthSpec: LengthSpec): string {
+function buildOutputFormat(book: BookConfig, gp: GenreProfile, lengthSpec: LengthSpec, language: PromptLanguage): string {
+  if (language === "ko") {
+    return buildKoreanOutputFormat(gp, lengthSpec);
+  }
+
   const resourceRow = gp.numericalSystem
     ? "| 当前资源总量 | X | 与账本一致 |\n| 本章预计增量 | +X（来源） | 无增量写+0 |"
     : "";
@@ -637,4 +828,120 @@ ${updatedLedger}
 - **关系**: 某角色(关系性质/Ch#) | ...
 - **已知**: 该角色已知的信息（仅限亲历或被告知）
 - **未知**: 该角色不知道的信息`;
+}
+
+function buildKoreanCreativeOutputFormat(gp: GenreProfile, lengthSpec: LengthSpec): string {
+  const resourceRow = gp.numericalSystem
+    ? "| 현재 자원 총량 | X | 장부와 일치 |\n| 이번 화 예상 증감 | +X(출처) | 변동 없으면 +0 |"
+    : "";
+
+  const preWriteTable = `=== PRE_WRITE_CHECK ===
+(반드시 Markdown 표로 출력)
+| 점검 항목 | 이번 화 기록 | 비고 |
+|-----------|---------------|------|
+| 아웃라인 기준점 | 현재 권/단계 + 이번 화가 밀어야 할 구체 사건 | 이후 사건 선소모 금지 |
+| 참고 범위 | X화~Y화 / 상태 카드 / 설정 파일 | |
+| 현재 앵커 | 장소 / 상대 / 이번 화 이득 목표 | 구체적으로 적기 |
+${resourceRow}| 회수 대상 복선 | 실제 hook_id 기입 (없으면 none) | 복선 풀과 일치 |
+| 이번 화 핵심 갈등 | 한 문장 요약 | |
+| 화 성격 | ${gp.chapterTypes.join("/")} | |
+| 리스크 스캔 | OOC/정보 월권/설정 충돌${gp.powerScaling ? "/파워 밸런스 붕괴" : ""}/리듬/표현 피로 | |`;
+
+  return `## 출력 형식 (반드시 준수)
+
+${preWriteTable}
+
+=== CHAPTER_TITLE ===
+(회차 제목만 출력. "제X화"는 쓰지 않는다. 기존 제목과 같은 제목이나 비슷한 제목을 반복하지 않는다.)
+
+=== CHAPTER_CONTENT ===
+(본문. 목표 ${lengthSpec.target}자, 권장 범위 ${lengthSpec.softMin}-${lengthSpec.softMax}자)
+
+중요: 이번 응답에는 PRE_WRITE_CHECK, CHAPTER_TITLE, CHAPTER_CONTENT 세 구역만 출력한다.
+상태 카드, 복선 풀, 요약 같은 추적 파일은 후속 정산 단계에서 처리하므로 여기서는 출력하지 않는다.`;
+}
+
+function buildKoreanOutputFormat(gp: GenreProfile, lengthSpec: LengthSpec): string {
+  const resourceRow = gp.numericalSystem
+    ? "| 현재 자원 총량 | X | 장부와 일치 |\n| 이번 화 예상 증감 | +X(출처) | 변동 없으면 +0 |"
+    : "";
+
+  const preWriteTable = `=== PRE_WRITE_CHECK ===
+(반드시 Markdown 표로 출력)
+| 점검 항목 | 이번 화 기록 | 비고 |
+|-----------|---------------|------|
+| 아웃라인 기준점 | 현재 권/단계 + 이번 화가 밀어야 할 구체 사건 | 이후 사건 선소모 금지 |
+| 참고 범위 | X화~Y화 / 상태 카드 / 설정 파일 | |
+| 현재 앵커 | 장소 / 상대 / 이번 화 이득 목표 | 구체적으로 적기 |
+${resourceRow}| 회수 대상 복선 | 실제 hook_id 기입 (없으면 none) | 복선 풀과 일치 |
+| 이번 화 핵심 갈등 | 한 문장 요약 | |
+| 화 성격 | ${gp.chapterTypes.join("/")} | |
+| 리스크 스캔 | OOC/정보 월권/설정 충돌${gp.powerScaling ? "/파워 밸런스 붕괴" : ""}/리듬/표현 피로 | |`;
+
+  const postSettlement = gp.numericalSystem
+    ? `=== POST_SETTLEMENT ===
+(수치 변동이 있으면 반드시 Markdown 표로 출력)
+| 정산 항목 | 이번 화 기록 | 비고 |
+|-----------|---------------|------|
+| 자원 장부 | 기초 X / 증감 +Y / 기말 Z | 변동 없으면 +0 |
+| 핵심 자원 | 자원명 -> 기여 +Y(근거) | 없으면 "없음" |
+| 복선 변동 | 신규/회수/보류 Hook | 복선 풀과 동기화 |`
+    : `=== POST_SETTLEMENT ===
+(복선 변동이 있으면 반드시 출력)
+| 정산 항목 | 이번 화 기록 | 비고 |
+|-----------|---------------|------|
+| 복선 변동 | 신규/회수/보류 Hook | 복선 풀과 동기화 |`;
+
+  const updatedLedger = gp.numericalSystem
+    ? "\n=== UPDATED_LEDGER ===\n(갱신된 전체 자원 장부를 Markdown 표로 출력)"
+    : "";
+
+  return `## 출력 형식 (반드시 준수)
+
+${preWriteTable}
+
+=== CHAPTER_TITLE ===
+(회차 제목만 출력. "제X화"는 쓰지 않는다. 기존 제목과 같은 제목이나 비슷한 제목을 반복하지 않는다.)
+
+=== CHAPTER_CONTENT ===
+(본문. 목표 ${lengthSpec.target}자, 권장 범위 ${lengthSpec.softMin}-${lengthSpec.softMax}자)
+
+${postSettlement}
+
+=== UPDATED_STATE ===
+(갱신된 전체 상태 카드를 Markdown 표로 출력)
+${updatedLedger}
+=== UPDATED_HOOKS ===
+(갱신된 전체 복선 풀을 Markdown 표로 출력)
+
+=== CHAPTER_SUMMARY ===
+(이번 화 요약. 반드시 아래 열을 포함한 Markdown 표로 출력)
+| 화수 | 제목 | 등장인물 | 핵심 사건 | 상태 변화 | 복선 변화 | 정서 톤 | 화 성격 |
+|------|------|----------|-----------|-----------|-----------|---------|---------|
+| N | 이번 화 제목 | 인물1, 인물2 | 한 문장 요약 | 핵심 변화 | H01 설치/H02 진전 | 감정 흐름 | ${gp.chapterTypes.length > 0 ? gp.chapterTypes.join("/") : "전개/충돌/고조/정리"} |
+
+=== UPDATED_SUBPLOTS ===
+(갱신된 전체 서브플롯 보드를 Markdown 표로 출력)
+| 서브플롯 ID | 이름 | 관련 인물 | 시작 화 | 최근 활성 화 | 경과 화수 | 상태 | 진행 요약 | 회수 ETA |
+|-------------|------|-----------|---------|--------------|-----------|------|-----------|---------|
+
+=== UPDATED_EMOTIONAL_ARCS ===
+(갱신된 전체 감정선 보드를 Markdown 표로 출력)
+| 인물 | 화수 | 감정 상태 | 촉발 사건 | 강도(1-10) | 방향 |
+|------|------|-----------|-----------|------------|------|
+
+=== UPDATED_CHARACTER_MATRIX ===
+(갱신된 인물 매트릭스. 인물마다 하나의 ## 블록으로 출력)
+
+## 인물명
+- **역할**: 주인공 / 적대자 / 동료 / 조연 / 언급만 됨
+- **태그**: 핵심 정체성 태그
+- **반전 포인트**: 고정 이미지를 깨는 세부 특징
+- **말투**: 대화 스타일 요약
+- **성격**: 기본 성향
+- **동기**: 근본 동력
+- **현재 목표**: 이번 화 기준 즉시 목표
+- **관계**: 특정 인물(관계/화수) | ...
+- **알고 있는 것**: 직접 경험했거나 전해 들은 정보만
+- **모르는 것**: 아직 알지 못하는 정보`;
 }

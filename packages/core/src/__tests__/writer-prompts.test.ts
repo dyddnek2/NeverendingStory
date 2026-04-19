@@ -134,4 +134,35 @@ describe("buildWriterSystemPrompt", () => {
     expect(prompt).toContain("English Variance Brief");
     expect(prompt).toContain("resistance-bearing exchange");
   });
+
+  it("uses a dedicated Korean prompt branch instead of the Chinese copy", () => {
+    const prompt = buildWriterSystemPrompt(
+      {
+        ...BOOK,
+        language: "ko",
+      },
+      {
+        ...GENRE,
+        language: "ko",
+        name: "현대 판타지",
+      },
+      null,
+      "# Book Rules\n\n- Keep the emotional line sharp.",
+      "# Genre Body",
+      "# Style Guide\n\nLean into crisp Korean prose.",
+      undefined,
+      2,
+      "creative",
+      undefined,
+      "ko",
+      "governed",
+    );
+
+    expect(prompt).toContain("당신은 현대 판타지 장르에 능숙한 한국 웹소설 작가다");
+    expect(prompt).toContain("## 핵심 규칙");
+    expect(prompt).toContain("## 입력 거버넌스 계약");
+    expect(prompt).toContain("## 출력 형식 (반드시 준수)");
+    expect(prompt).not.toContain("你是一位专业的");
+    expect(prompt).not.toContain("## 核心规则");
+  });
 });
