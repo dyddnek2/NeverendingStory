@@ -94,6 +94,78 @@ describe("ReviserAgent", () => {
     }
   });
 
+  it("uses Korean revision prompts when the book language is Korean", async () => {
+    const root = await mkdtemp(join(tmpdir(), "inkos-reviser-ko-test-"));
+    const bookDir = join(root, "book");
+    await mkdir(join(bookDir, "story"), { recursive: true });
+
+    await writeFile(
+      join(bookDir, "book.json"),
+      JSON.stringify({
+        id: "korean-book",
+        title: "한국어 책",
+        genre: "xuanhuan",
+        platform: "naver",
+        chapterWordCount: 800,
+        targetChapters: 60,
+        status: "active",
+        language: "ko",
+        createdAt: "2026-04-20T00:00:00.000Z",
+        updatedAt: "2026-04-20T00:00:00.000Z",
+      }, null, 2),
+      "utf-8",
+    );
+
+    const agent = new ReviserAgent({
+      client: {
+        provider: "openai",
+        apiFormat: "chat",
+        stream: false,
+        defaults: {
+          temperature: 0.7,
+          maxTokens: 4096,
+          thinkingBudget: 0, maxTokensCap: null,
+          extra: {},
+        },
+      },
+      model: "test-model",
+      projectRoot: root,
+    });
+
+    const chatSpy = vi.spyOn(ReviserAgent.prototype as never, "chat" as never).mockResolvedValue({
+      content: [
+        "=== FIXED_ISSUES ===",
+        "- repaired",
+        "",
+        "=== REVISED_CONTENT ===",
+        "수정된 본문.",
+        "",
+        "=== UPDATED_STATE ===",
+        "상태 카드",
+        "",
+        "=== UPDATED_HOOKS ===",
+        "복선 풀",
+      ].join("\n"),
+      usage: ZERO_USAGE,
+    });
+
+    try {
+      await agent.reviseChapter(bookDir, "원본 본문.", 1, [CRITICAL_ISSUE], "rewrite", "xuanhuan");
+
+      const messages = chatSpy.mock.calls[0]?.[0] as ReadonlyArray<{ content: string }> | undefined;
+      const systemPrompt = messages?.[0]?.content ?? "";
+      const userPrompt = messages?.[1]?.content ?? "";
+
+      expect(systemPrompt).toContain("반드시 한국어로 작성한다");
+      expect(systemPrompt).toContain("웹소설 교정 편집자");
+      expect(userPrompt).toContain("## 심사 문제");
+      expect(userPrompt).toContain("## 수정 대상 본문");
+      expect(userPrompt).not.toContain("## 审稿问题");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("keeps rewrite mode local-first instead of encouraging full-chapter replacement", async () => {
     const root = await mkdtemp(join(tmpdir(), "inkos-reviser-rewrite-guardrail-test-"));
     const bookDir = join(root, "book");
@@ -214,11 +286,11 @@ describe("ReviserAgent", () => {
       const systemPrompt = messages?.[0]?.content ?? "";
       const userPrompt = messages?.[1]?.content ?? "";
 
-      expect(systemPrompt).toContain("保持章节字数在目标区间内");
+      expect(systemPrompt).toContain("목표 구간 안에 최대한 유지");
       expect(systemPrompt).toContain("=== PATCHES ===");
       expect(systemPrompt).not.toContain("=== REVISED_CONTENT ===");
-      expect(userPrompt).toContain("目标字数：220");
-      expect(userPrompt).toContain("允许区间：190-250");
+      expect(userPrompt).toContain("목표 분량: 220");
+      expect(userPrompt).toContain("권장 범위: 190-250");
     } finally {
       await rm(root, { recursive: true, force: true });
     }
