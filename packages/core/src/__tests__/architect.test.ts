@@ -146,6 +146,69 @@ describe("ArchitectAgent", () => {
     expect(messages[0]?.content).not.toContain("## 叙事视角");
   });
 
+  it("uses Korean prompts when generating foundation from imported Korean chapters", async () => {
+    const agent = new ArchitectAgent({
+      client: {
+        provider: "openai",
+        apiFormat: "chat",
+        stream: false,
+        defaults: {
+          temperature: 0.7,
+          maxTokens: 4096,
+          thinkingBudget: 0, maxTokensCap: null,
+          extra: {},
+        },
+      },
+      model: "test-model",
+      projectRoot: process.cwd(),
+    });
+
+    const book: BookConfig = {
+      id: "korean-import-book",
+      title: "항로의 문장",
+      platform: "other",
+      genre: "other",
+      status: "active",
+      targetChapters: 20,
+      chapterWordCount: 2200,
+      language: "ko",
+      createdAt: "2026-04-20T00:00:00.000Z",
+      updatedAt: "2026-04-20T00:00:00.000Z",
+    };
+
+    const chat = vi.spyOn(agent as unknown as { chat: (...args: unknown[]) => Promise<unknown> }, "chat")
+      .mockResolvedValue({
+        content: [
+          "=== SECTION: story_bible ===",
+          "# 스토리 바이블",
+          "",
+          "=== SECTION: volume_outline ===",
+          "# 권차 개요",
+          "",
+          "=== SECTION: book_rules ===",
+          "---",
+          "version: \"1.0\"",
+          "---",
+          "",
+          "=== SECTION: current_state ===",
+          "# 현재 상태",
+          "",
+          "=== SECTION: pending_hooks ===",
+          "# 복선 풀",
+        ].join("\n"),
+        usage: ZERO_USAGE,
+      });
+
+    await agent.generateFoundationFromImport(book, "제1화 항로\n\n검은 파도가 부두를 때렸다.");
+
+    const messages = chat.mock.calls[0]?.[0] as Array<{ role: string; content: string }>;
+    expect(messages[0]?.content).toContain("반드시 한국어로 작성한다");
+    expect(messages[0]?.content).toContain("## 01_세계관");
+    expect(messages[0]?.content).toContain("## 작업 모드");
+    expect(messages[1]?.content).toContain("완전한 기초 설계를 역추론하라");
+    expect(messages[0]?.content).not.toContain("## 01_世界观");
+  });
+
   it("embeds reviewer feedback into original foundation regeneration prompts", async () => {
     const agent = new ArchitectAgent({
       client: {
@@ -209,6 +272,70 @@ describe("ArchitectAgent", () => {
     expect(messages[0]?.content).toContain("上一轮审核反馈");
     expect(messages[0]?.content).toContain("请把核心冲突收紧");
     expect(messages[0]?.content).toContain("明确新空间不是旧案重演");
+  });
+
+  it("uses dedicated Korean prompts when generating a foundation", async () => {
+    const agent = new ArchitectAgent({
+      client: {
+        provider: "openai",
+        apiFormat: "chat",
+        stream: false,
+        defaults: {
+          temperature: 0.7,
+          maxTokens: 4096,
+          thinkingBudget: 0, maxTokensCap: null,
+          extra: {},
+        },
+      },
+      model: "test-model",
+      projectRoot: process.cwd(),
+    });
+
+    const book: BookConfig = {
+      id: "korean-book",
+      title: "검은 파도 항로",
+      platform: "other",
+      genre: "other",
+      status: "active",
+      targetChapters: 30,
+      chapterWordCount: 2200,
+      language: "ko",
+      createdAt: "2026-04-20T00:00:00.000Z",
+      updatedAt: "2026-04-20T00:00:00.000Z",
+    };
+
+    const chat = vi.spyOn(agent as unknown as { chat: (...args: unknown[]) => Promise<unknown> }, "chat")
+      .mockResolvedValue({
+        content: [
+          "=== SECTION: story_bible ===",
+          "# 스토리 바이블",
+          "",
+          "=== SECTION: volume_outline ===",
+          "# 권차 개요",
+          "",
+          "=== SECTION: book_rules ===",
+          "---",
+          "version: \"1.0\"",
+          "---",
+          "",
+          "=== SECTION: current_state ===",
+          "# 현재 상태",
+          "",
+          "=== SECTION: pending_hooks ===",
+          "# 복선 풀",
+        ].join("\n"),
+        usage: ZERO_USAGE,
+      });
+
+    await agent.generateFoundation(book, undefined, "초반 갈등을 더 빨리 점화하라.");
+
+    const messages = chat.mock.calls[0]?.[0] as Array<{ role: string; content: string }>;
+    expect(messages[0]?.content).toContain("모든 출력");
+    expect(messages[0]?.content).toContain("## 01_세계관");
+    expect(messages[0]?.content).toContain("## 이전 심사 피드백");
+    expect(messages[1]?.content).toContain("완전한 기초 설계를 생성하라");
+    expect(messages[0]?.content).not.toContain("## 01_世界观");
+    expect(messages[0]?.content).not.toContain("MUST be written in English");
   });
 
   it("embeds reviewer feedback into fanfic foundation regeneration prompts", async () => {
