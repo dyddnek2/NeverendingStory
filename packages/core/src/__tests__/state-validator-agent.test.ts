@@ -120,4 +120,32 @@ describe("StateValidatorAgent", () => {
       "en",
     )).rejects.toThrow("empty response");
   });
+
+  it("uses Korean validation instructions when language is ko", async () => {
+    const agent = new StateValidatorAgent({
+      client: {
+        provider: "openai",
+        apiFormat: "chat",
+        stream: false,
+        defaults: {
+          temperature: 0.7,
+          maxTokens: 4096,
+          thinkingBudget: 0,
+          maxTokensCap: null,
+          extra: {},
+        },
+      },
+      model: "test-model",
+      projectRoot: process.cwd(),
+    });
+
+    const chatSpy = vi.spyOn(agent as unknown as { chat: (...args: unknown[]) => Promise<unknown> }, "chat")
+      .mockResolvedValue({ content: "PASS", usage: ZERO_USAGE });
+
+    await agent.validate("본문", 2, "old", "new", "old hooks", "new hooks", "ko");
+
+    const messages = chatSpy.mock.calls[0]?.[0] as Array<{ content: string }>;
+    expect(messages[0]?.content).toContain("한국어로 답하라");
+    expect(messages[0]?.content).not.toContain("用中文回答");
+  });
 });
