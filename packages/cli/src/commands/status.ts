@@ -1,6 +1,7 @@
 import { Command } from "commander";
-import { StateManager, formatLengthCount, readGenreProfile, resolveLengthCountingMode } from "@actalk/inkos-core";
+import { StateManager, readGenreProfile } from "@actalk/inkos-core";
 import { findProjectRoot, getLegacyMigrationHint, log, logError } from "../utils.js";
+import { formatCliLengthCount } from "../localization.js";
 
 export const statusCommand = new Command("status")
   .description("Show project status")
@@ -35,7 +36,7 @@ export const statusCommand = new Command("status")
         const migrationHint = await getLegacyMigrationHint(root, id);
         const persistedChapterCount = await state.getPersistedChapterCount(id);
         const { profile: genreProfile } = await readGenreProfile(root, book.genre);
-        const countingMode = resolveLengthCountingMode(book.language ?? genreProfile.language);
+        const language = book.language ?? genreProfile.language;
 
         const approved = index.filter((ch) => ch.status === "approved").length;
         const pending = index.filter(
@@ -99,7 +100,7 @@ export const statusCommand = new Command("status")
                   : ch.status === "state-degraded"
                     ? "x"
                     : "~";
-              log(`    [${icon}] Ch.${ch.number} "${ch.title}" | ${formatLengthCount(ch.wordCount, countingMode)} | ${ch.status}`);
+              log(`    [${icon}] Ch.${ch.number} "${ch.title}" | ${formatCliLengthCount(ch.wordCount, language)} | ${ch.status}`);
               if ((ch.status === "audit-failed" || ch.status === "state-degraded") && ch.auditIssues.length > 0) {
                 const criticals = ch.auditIssues.filter((i: string) => i.startsWith("[critical]"));
                 const warnings = ch.auditIssues.filter((i: string) => i.startsWith("[warning]"));

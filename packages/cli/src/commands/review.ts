@@ -1,6 +1,7 @@
 import { Command } from "commander";
-import { StateManager, formatLengthCount, readGenreProfile, resolveLengthCountingMode } from "@actalk/inkos-core";
+import { StateManager, readGenreProfile } from "@actalk/inkos-core";
 import { findProjectRoot, resolveBookId, log, logError } from "../utils.js";
+import { formatCliLengthCount } from "../localization.js";
 
 export const reviewCommand = new Command("review")
   .description("Review and approve chapters");
@@ -37,7 +38,7 @@ reviewCommand
 
         const book = await state.loadBookConfig(id);
         const { profile: genreProfile } = await readGenreProfile(root, book.genre);
-        const countingMode = resolveLengthCountingMode(book.language ?? genreProfile.language);
+        const language = book.language ?? genreProfile.language;
 
         if (!opts.json) {
           log(`\n${book.title} (${id}):`);
@@ -54,7 +55,7 @@ reviewCommand
           });
           if (!opts.json) {
             log(
-              `  Ch.${ch.number} "${ch.title}" | ${formatLengthCount(ch.wordCount, countingMode)} | ${ch.status}`,
+              `  Ch.${ch.number} "${ch.title}" | ${formatCliLengthCount(ch.wordCount, language)} | ${ch.status}`,
             );
             if (ch.auditIssues.length > 0) {
               for (const issue of ch.auditIssues) {
