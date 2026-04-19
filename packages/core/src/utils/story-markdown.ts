@@ -7,7 +7,7 @@ import {
 
 export function renderSummarySnapshot(
   summaries: ReadonlyArray<StoredSummary>,
-  language: "zh" | "en" = "zh",
+  language: "ko" | "zh" | "en" = "zh",
 ): string {
   if (summaries.length === 0) return "- none";
 
@@ -38,7 +38,7 @@ export function renderSummarySnapshot(
 
 export function renderHookSnapshot(
   hooks: ReadonlyArray<StoredHook>,
-  language: "zh" | "en" = "zh",
+  language: "ko" | "zh" | "en" = "zh",
 ): string {
   if (hooks.length === 0) return "- none";
 
