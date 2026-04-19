@@ -324,6 +324,68 @@ describe("PlannerAgent", () => {
     expect(result.intent.moodDirective).toBeUndefined();
   });
 
+  it("renders Korean intent documents instead of English or Chinese fallback copy", async () => {
+    book = {
+      ...book,
+      language: "ko",
+      genre: "other",
+    };
+
+    await Promise.all([
+      writeFile(
+        join(storyDir, "author_intent.md"),
+        "# 작가 의도\n\n(이 작품이 장기적으로 어떤 방향으로 가야 하는지 여기에 적는다.)\n",
+        "utf-8",
+      ),
+      writeFile(
+        join(storyDir, "current_focus.md"),
+        [
+          "# 현재 집중",
+          "",
+          "## 이번 구간 핵심",
+          "",
+          "(앞으로 1-3화 동안 가장 우선해서 밀어야 할 내용을 적는다.)",
+          "",
+        ].join("\n"),
+        "utf-8",
+      ),
+      writeFile(
+        join(storyDir, "chapter_summaries.md"),
+        [
+          "# Chapter Summaries",
+          "",
+          "| chapter | title | characters | events | stateChanges | hookActivity | mood | chapterType |",
+          "| --- | --- | --- | --- | --- | --- | --- | --- |",
+          "| 1 | 장부의 밤 | 윤서 | 기록고를 뒤진다 | 없음 | hook advanced | tense | investigation |",
+          "| 2 | 장부의 새벽 | 윤서 | 창고 문서를 확인한다 | 없음 | hook advanced | tense | investigation |",
+          "| 3 | 장부의 그림자 | 윤서 | 수로 아래 문을 연다 | 없음 | hook advanced | tense | investigation |",
+          "",
+        ].join("\n"),
+        "utf-8",
+      ),
+    ]);
+
+    const planner = new PlannerAgent({
+      client: {} as ConstructorParameters<typeof PlannerAgent>[0]["client"],
+      model: "test-model",
+      projectRoot: root,
+      bookId: book.id,
+    });
+
+    const result = await planner.planChapter({
+      book,
+      bookDir,
+      chapterNumber: 4,
+    });
+
+    expect(result.intentMarkdown).toContain("# 장 의도");
+    expect(result.intentMarkdown).toContain("## 목표");
+    expect(result.intentMarkdown).toContain("### 복선 예산");
+    expect(result.intentMarkdown).toContain("## 복선 아젠다");
+    expect(result.intentMarkdown).not.toContain("# Chapter Intent");
+    expect(result.intentMarkdown).not.toContain("# 当前聚焦");
+  });
+
   it("emits a mood directive when recent chapters are all high-tension", async () => {
     book = {
       ...book,
@@ -933,6 +995,51 @@ describe("PlannerAgent", () => {
     expect(result.intent.conflicts).toHaveLength(1);
     expect(result.intent.conflicts[0]?.type).toBe("outline_vs_request");
     await expect(readFile(result.runtimePath, "utf-8")).resolves.toContain("outline_vs_request");
+  });
+
+  it("detects Korean override requests against Korean outline anchors", async () => {
+    book = {
+      ...book,
+      language: "ko",
+      genre: "other",
+    };
+
+    await Promise.all([
+      writeFile(
+        join(storyDir, "current_focus.md"),
+        "# 현재 집중\n\n## 이번 구간 핵심\n\n상회 추적을 유지한다.\n",
+        "utf-8",
+      ),
+      writeFile(
+        join(storyDir, "volume_outline.md"),
+        [
+          "# 권차 개요",
+          "",
+          "## 제3화",
+          "상회 도주 경로를 따라 서쪽 수로를 추적한다.",
+          "",
+        ].join("\n"),
+        "utf-8",
+      ),
+    ]);
+
+    const planner = new PlannerAgent({
+      client: {} as ConstructorParameters<typeof PlannerAgent>[0]["client"],
+      model: "test-model",
+      projectRoot: root,
+      bookId: book.id,
+    });
+
+    const result = await planner.planChapter({
+      book,
+      bookDir,
+      chapterNumber: 3,
+      externalContext: "상회 추적은 이번 화에서 미루고 대신 스승 빚 갈등을 먼저 밀어라.",
+    });
+
+    expect(result.intent.outlineNode).toContain("상회 도주 경로");
+    expect(result.intent.conflicts[0]?.type).toBe("outline_vs_request");
+    expect(result.intent.conflicts[0]?.resolution).toBe("allow local outline deferral");
   });
 
   it("writes compact memory snapshots instead of inlining the full history", async () => {

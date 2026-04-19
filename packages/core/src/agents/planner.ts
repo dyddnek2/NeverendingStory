@@ -13,6 +13,8 @@ import {
 import { analyzeChapterCadence } from "../utils/chapter-cadence.js";
 import { buildPlannerHookAgenda } from "../utils/hook-agenda.js";
 
+type ProjectLanguage = NonNullable<BookConfig["language"]>;
+
 export interface PlanChapterInput {
   readonly book: BookConfig;
   readonly bookDir: string;
@@ -146,7 +148,7 @@ export class PlannerAgent extends BaseAgent {
       .sort((left, right) => left.chapter - right.chapter)
       .slice(-4);
     const cadence = analyzeChapterCadence({
-      language: this.isChineseLanguage(input.language) ? "zh" : "en",
+      language: input.language === "ko" ? "ko" : this.isChineseLanguage(input.language) ? "zh" : "en",
       rows: recentSummaries.map((summary) => ({
         chapter: summary.chapter,
         title: summary.title,
@@ -210,7 +212,7 @@ export class PlannerAgent extends BaseAgent {
         .map((line) => line.trim())
         .filter((line) =>
           line.startsWith("-") &&
-          /avoid|don't|do not|不要|别|禁止/i.test(line),
+          /avoid|don't|do not|不要|别|禁止|피하|금지|하지 마/i.test(line),
         )
         .map((line) => this.cleanListItem(line))
         .filter((line): line is string => Boolean(line));
@@ -234,7 +236,7 @@ export class PlannerAgent extends BaseAgent {
     const outlineText = outlineNode ?? volumeOutline;
     if (!outlineText || outlineText === "(文件尚未创建)") return [];
     if (externalContext) {
-      const indicatesOverride = /ignore|skip|defer|instead|不要|别|先别|暂停/i.test(externalContext);
+      const indicatesOverride = /ignore|skip|defer|instead|不要|别|先别|暂停|무시|건너뛰|미루|대신|보류|이번엔.*말|하지 마/i.test(externalContext);
       if (!indicatesOverride && this.hasKeywordOverlap(externalContext, outlineText)) return [];
 
       return [
@@ -289,6 +291,8 @@ export class PlannerAgent extends BaseAgent {
       "当前聚焦",
       "当前焦点",
       "近期聚焦",
+      "현재 집중",
+      "이번 구간 핵심",
     ]) ?? currentFocus;
     const directives = this.extractFocusStyleItems(focusSection, 3);
     if (directives.length === 0) {
@@ -307,6 +311,10 @@ export class PlannerAgent extends BaseAgent {
       "本章覆盖",
       "临时覆盖",
       "当前覆盖",
+      "국소 오버라이드",
+      "명시적 오버라이드",
+      "이번 화 오버라이드",
+      "현재 오버라이드",
     ]);
     if (!overrideSection) {
       return undefined;
@@ -327,6 +335,8 @@ export class PlannerAgent extends BaseAgent {
       "当前聚焦",
       "当前焦点",
       "近期聚焦",
+      "현재 집중",
+      "이번 구간 핵심",
     ]) ?? currentFocus;
     return this.extractListItems(focusSection, limit);
   }
@@ -343,6 +353,8 @@ export class PlannerAgent extends BaseAgent {
 
     return this.isChineseLanguage(language)
       ? "不要继续依赖卷纲的 fallback 指令，必须把本章推进到新的弧线节点或地点变化。"
+      : language === "ko"
+        ? "권차 개요의 fallback 지시에만 기대지 말고, 이번 화를 새로운 서사 결절점이나 장소 변화까지 밀어라."
       : "Do not keep leaning on the outline fallback. Force this chapter toward a fresh arc beat or location change.";
   }
 
@@ -357,6 +369,8 @@ export class PlannerAgent extends BaseAgent {
 
     return this.isChineseLanguage(language)
       ? `最近章节连续停留在“${repeatedType}”，本章必须更换场景容器、地点或行动方式。`
+      : language === "ko"
+        ? `최근 몇 화가 계속 "${repeatedType}"에 머물렀다. 이번 화는 장면의 그릇, 장소, 행동 방식 중 하나를 반드시 바꿔라.`
       : `Recent chapters are stuck in repeated ${repeatedType} beats. Change the scene container, location, or action pattern this chapter.`;
   }
 
@@ -371,6 +385,8 @@ export class PlannerAgent extends BaseAgent {
 
     return this.isChineseLanguage(language)
       ? `最近${moods.length}章情绪持续高压（${moods.slice(0, 3).join("、")}），本章必须降调——安排日常/喘息/温情/幽默场景，让读者呼吸。`
+      : language === "ko"
+        ? `최근 ${moods.length}화가 계속 고강도 정서(${moods.slice(0, 3).join(", ")})에 머물렀다. 이번 화는 일상, 숨 돌림, 온기, 유머 중 하나를 넣어 리듬을 낮춰라.`
       : `The last ${moods.length} chapters have been relentlessly tense (${moods.slice(0, 3).join(", ")}). This chapter must downshift — write a quieter scene with warmth, humor, or breathing room.`;
   }
 
@@ -385,19 +401,25 @@ export class PlannerAgent extends BaseAgent {
 
     return this.isChineseLanguage(language)
       ? `标题不要再围绕“${repeatedToken}”重复命名，换一个新的意象或动作焦点。`
+      : language === "ko"
+        ? `제목을 또 "${repeatedToken}" 중심으로 반복하지 말고, 새로운 이미지나 행동 초점으로 바꿔라.`
       : `Avoid another ${repeatedToken}-centric title. Pick a new image or action focus for this chapter title.`;
   }
 
-  private renderHookBudget(activeCount: number, language: "zh" | "en"): string {
+  private renderHookBudget(activeCount: number, language: ProjectLanguage): string {
     const cap = 12;
     if (activeCount < 10) {
       return language === "en"
         ? `### Hook Budget\n- ${activeCount} active hooks (capacity: ${cap})`
+        : language === "ko"
+          ? `### 복선 예산\n- 현재 활성 복선 ${activeCount}개 (최대 ${cap}개)`
         : `### 伏笔预算\n- 当前 ${activeCount} 条活跃伏笔（容量：${cap}）`;
     }
     const remaining = Math.max(0, cap - activeCount);
     return language === "en"
       ? `### Hook Budget\n- ${activeCount} active hooks — approaching capacity (${cap}). Only ${remaining} new hook(s) allowed. Prioritize resolving existing debt over opening new threads.`
+      : language === "ko"
+        ? `### 복선 예산\n- 현재 활성 복선이 ${activeCount}개로 상한선(${cap})에 가까워졌다. 새 복선은 ${remaining}개만 허용된다. 새 떡밥보다 기존 복선 채무를 먼저 정리하라.`
       : `### 伏笔预算\n- 当前 ${activeCount} 条活跃伏笔——接近容量上限（${cap}）。仅剩 ${remaining} 个新坑位。优先回收旧债，不要轻易开新线。`;
   }
 
@@ -456,6 +478,7 @@ export class PlannerAgent extends BaseAgent {
     return (
       /^\((describe|briefly describe|write)\b[\s\S]*\)$/i.test(normalized)
       || /^（(?:在这里描述|描述|填写|写下)[\s\S]*）$/u.test(normalized)
+      || /^\((?:여기에|설명|작성|기입)[\s\S]*\)$/u.test(normalized)
     );
   }
 
@@ -572,6 +595,8 @@ export class PlannerAgent extends BaseAgent {
     const patterns = [
       new RegExp(`^(?:#+\\s*)?(?:[-*]\\s+)?(?:\\*\\*)?Chapter\\s*${chapterNumber}(?!\\d|\\s*[-~–—]\\s*\\d)(?:[:：-])?(?:\\*\\*)?\\s*(.*)$`, "i"),
       new RegExp(`^(?:#+\\s*)?(?:[-*]\\s+)?(?:\\*\\*)?第\\s*${chapterNumber}\\s*章(?!\\d|\\s*[-~–—]\\s*\\d)(?:[:：-])?(?:\\*\\*)?\\s*(.*)$`),
+      new RegExp(`^(?:#+\\s*)?(?:[-*]\\s+)?(?:\\*\\*)?제\\s*${chapterNumber}\\s*화(?!\\d|\\s*[-~–—]\\s*\\d)(?:[:：-])?(?:\\*\\*)?\\s*(.*)$`, "i"),
+      new RegExp(`^(?:#+\\s*)?(?:[-*]\\s+)?(?:\\*\\*)?${chapterNumber}\\s*화(?!\\d|\\s*[-~–—]\\s*\\d)(?:[:：-])?(?:\\*\\*)?\\s*(.*)$`, "i"),
     ];
 
     return patterns
@@ -583,6 +608,8 @@ export class PlannerAgent extends BaseAgent {
     const patterns = [
       /^(?:#+\s*)?(?:[-*]\s+)?(?:\*\*)?Chapter\s*\d+(?!\s*[-~–—]\s*\d)(?:[:：-])?(?:\*\*)?\s*(.*)$/i,
       /^(?:#+\s*)?(?:[-*]\s+)?(?:\*\*)?第\s*\d+\s*章(?!\s*[-~–—]\s*\d)(?:[:：-])?(?:\*\*)?\s*(.*)$/i,
+      /^(?:#+\s*)?(?:[-*]\s+)?(?:\*\*)?제\s*\d+\s*화(?!\s*[-~–—]\s*\d)(?:[:：-])?(?:\*\*)?\s*(.*)$/i,
+      /^(?:#+\s*)?(?:[-*]\s+)?(?:\*\*)?\d+\s*화(?!\s*[-~–—]\s*\d)(?:[:：-])?(?:\*\*)?\s*(.*)$/i,
     ];
 
     return patterns
@@ -604,6 +631,8 @@ export class PlannerAgent extends BaseAgent {
     const patterns = [
       /^(?:#+\s*)?(?:[-*]\s+)?(?:\*\*)?Chapter\s*(\d+)\s*[-~–—]\s*(\d+)\b(?:[:：-])?(?:\*\*)?\s*(.*)$/i,
       /^(?:#+\s*)?(?:[-*]\s+)?(?:\*\*)?第\s*(\d+)\s*[-~–—]\s*(\d+)\s*章(?:[:：-])?(?:\*\*)?\s*(.*)$/i,
+      /^(?:#+\s*)?(?:[-*]\s+)?(?:\*\*)?제\s*(\d+)\s*[-~–—]\s*(\d+)\s*화(?:[:：-])?(?:\*\*)?\s*(.*)$/i,
+      /^(?:#+\s*)?(?:[-*]\s+)?(?:\*\*)?(\d+)\s*[-~–—]\s*(\d+)\s*화(?:[:：-])?(?:\*\*)?\s*(.*)$/i,
     ];
 
     return patterns
@@ -635,62 +664,114 @@ export class PlannerAgent extends BaseAgent {
   private extractKeywords(content: string): string[] {
     const english = content.match(/[a-z]{4,}/gi) ?? [];
     const chinese = content.match(/[\u4e00-\u9fff]{2,4}/g) ?? [];
-    return this.unique([...english, ...chinese]);
+    const korean = content.match(/[\uac00-\ud7af]{2,8}/g) ?? [];
+    return this.unique([...english, ...chinese, ...korean]);
   }
 
   private renderIntentMarkdown(
     intent: ChapterIntent,
-    language: "zh" | "en",
+  language: ProjectLanguage,
     pendingHooks: string,
     chapterSummaries: string,
     activeHookCount: number,
   ): string {
     const conflictLines = intent.conflicts.length > 0
       ? intent.conflicts.map((conflict) => `- ${conflict.type}: ${conflict.resolution}`).join("\n")
-      : "- none";
+      : language === "en"
+        ? "- none"
+        : language === "ko"
+          ? "- 없음"
+          : "- none";
 
     const mustKeep = intent.mustKeep.length > 0
       ? intent.mustKeep.map((item) => `- ${item}`).join("\n")
-      : "- none";
+      : language === "en"
+        ? "- none"
+        : language === "ko"
+          ? "- 없음"
+          : "- none";
 
     const mustAvoid = intent.mustAvoid.length > 0
       ? intent.mustAvoid.map((item) => `- ${item}`).join("\n")
-      : "- none";
+      : language === "en"
+        ? "- none"
+        : language === "ko"
+          ? "- 없음"
+          : "- none";
 
     const styleEmphasis = intent.styleEmphasis.length > 0
       ? intent.styleEmphasis.map((item) => `- ${item}`).join("\n")
-      : "- none";
+      : language === "en"
+        ? "- none"
+        : language === "ko"
+          ? "- 없음"
+          : "- none";
     const directives = [
       intent.arcDirective ? `- arc: ${intent.arcDirective}` : undefined,
       intent.sceneDirective ? `- scene: ${intent.sceneDirective}` : undefined,
       intent.moodDirective ? `- mood: ${intent.moodDirective}` : undefined,
       intent.titleDirective ? `- title: ${intent.titleDirective}` : undefined,
-    ].filter(Boolean).join("\n") || "- none";
+    ].filter(Boolean).join("\n") || (language === "ko" ? "- 없음" : "- none");
     const hookAgenda = [
-      "### Must Advance",
+      language === "en" ? "### Must Advance" : language === "ko" ? "### 반드시 진전시킬 복선" : "### Must Advance",
       intent.hookAgenda.mustAdvance.length > 0
         ? intent.hookAgenda.mustAdvance.map((item) => `- ${item}`).join("\n")
-        : "- none",
+        : language === "ko" ? "- 없음" : "- none",
       "",
-      "### Eligible Resolve",
+      language === "en" ? "### Eligible Resolve" : language === "ko" ? "### 회수 후보" : "### Eligible Resolve",
       intent.hookAgenda.eligibleResolve.length > 0
         ? intent.hookAgenda.eligibleResolve.map((item) => `- ${item}`).join("\n")
-        : "- none",
+        : language === "ko" ? "- 없음" : "- none",
       "",
-      "### Stale Debt",
+      language === "en" ? "### Stale Debt" : language === "ko" ? "### 오래 묵은 복선 채무" : "### Stale Debt",
       intent.hookAgenda.staleDebt.length > 0
         ? intent.hookAgenda.staleDebt.map((item) => `- ${item}`).join("\n")
-        : "- none",
+        : language === "ko" ? "- 없음" : "- none",
       "",
-      "### Avoid New Hook Families",
+      language === "en" ? "### Avoid New Hook Families" : language === "ko" ? "### 새로 열지 말아야 할 복선 계열" : "### Avoid New Hook Families",
       intent.hookAgenda.avoidNewHookFamilies.length > 0
         ? intent.hookAgenda.avoidNewHookFamilies.map((item) => `- ${item}`).join("\n")
-        : "- none",
+        : language === "ko" ? "- 없음" : "- none",
       "",
       this.renderHookBudget(activeHookCount, language),
     ].join("\n");
 
-    return [
+    return language === "ko"
+      ? [
+          "# 장 의도",
+          "",
+          "## 목표",
+          intent.goal,
+          "",
+          "## 개요 앵커",
+          intent.outlineNode ?? "(없음)",
+          "",
+          "## 반드시 유지할 것",
+          mustKeep,
+          "",
+          "## 반드시 피할 것",
+          mustAvoid,
+          "",
+          "## 문체 강조점",
+          styleEmphasis,
+          "",
+          "## 구조 지시",
+          directives,
+          "",
+          "## 복선 아젠다",
+          hookAgenda,
+          "",
+          "## 충돌",
+          conflictLines,
+          "",
+          "## 복선 스냅샷",
+          pendingHooks,
+          "",
+          "## 장 요약 스냅샷",
+          chapterSummaries,
+          "",
+        ].join("\n")
+      : [
       "# Chapter Intent",
       "",
       "## Goal",
