@@ -25,13 +25,21 @@ export class FoundationReviewerAgent extends BaseAgent {
     readonly mode: "original" | "fanfic" | "series";
     readonly sourceCanon?: string;
     readonly styleGuide?: string;
-    readonly language: "zh" | "en";
+    readonly language: "ko" | "zh" | "en";
   }): Promise<FoundationReviewResult> {
     const canonBlock = params.sourceCanon
-      ? `\n## 原作正典参照\n${params.sourceCanon.slice(0, 8000)}\n`
+      ? params.language === "en"
+        ? `\n## Source Canon Reference\n${params.sourceCanon.slice(0, 8000)}\n`
+        : params.language === "ko"
+          ? `\n## 원작 정전 참조\n${params.sourceCanon.slice(0, 8000)}\n`
+          : `\n## 原作正典参照\n${params.sourceCanon.slice(0, 8000)}\n`
       : "";
     const styleBlock = params.styleGuide
-      ? `\n## 原作风格参照\n${params.styleGuide.slice(0, 2000)}\n`
+      ? params.language === "en"
+        ? `\n## Source Style Reference\n${params.styleGuide.slice(0, 2000)}\n`
+        : params.language === "ko"
+          ? `\n## 원작 문체 참조\n${params.styleGuide.slice(0, 2000)}\n`
+          : `\n## 原作风格参照\n${params.styleGuide.slice(0, 2000)}\n`
       : "";
 
     const dimensions = params.mode === "original"
@@ -40,7 +48,9 @@ export class FoundationReviewerAgent extends BaseAgent {
 
     const systemPrompt = params.language === "en"
       ? this.buildEnglishReviewPrompt(dimensions, canonBlock, styleBlock)
-      : this.buildChineseReviewPrompt(dimensions, canonBlock, styleBlock);
+      : params.language === "ko"
+        ? this.buildKoreanReviewPrompt(dimensions, canonBlock, styleBlock)
+        : this.buildChineseReviewPrompt(dimensions, canonBlock, styleBlock);
 
     const userPrompt = this.buildFoundationExcerpt(params.foundation, params.language);
 
@@ -52,7 +62,7 @@ export class FoundationReviewerAgent extends BaseAgent {
     return this.parseReviewResult(response.content, dimensions);
   }
 
-  private originalDimensions(language: "zh" | "en"): ReadonlyArray<string> {
+  private originalDimensions(language: "ko" | "zh" | "en"): ReadonlyArray<string> {
     return language === "en"
       ? [
           "Core Conflict (Is there a clear, compelling central conflict that can sustain 40 chapters?)",
@@ -61,6 +71,14 @@ export class FoundationReviewerAgent extends BaseAgent {
           "Character Differentiation (Are the main characters distinct in voice and motivation?)",
           "Pacing Feasibility (Does the volume outline have enough variety — not the same beat for 10 chapters?)",
         ]
+      : language === "ko"
+        ? [
+            "핵심 갈등 (40화 이상 끌고 갈 만큼 선명하고 강한 중심 갈등이 있는가?)",
+            "초반 추진력 (초반 5화 안에 독자를 넘기게 만드는 동력이 형성되는가?)",
+            "세계관 일관성 (세계 설정이 구체적이고 내부 논리상 어긋나지 않는가?)",
+            "인물 차별화 (주요 인물의 목소리와 동기가 서로 분명히 구분되는가?)",
+            "전개 리듬의 지속 가능성 (권차 개요가 충분히 변주되어 같은 박자를 오래 반복하지 않는가?)",
+          ]
       : [
           "核心冲突（是否有清晰且有足够张力的核心冲突支撑40章？）",
           "开篇节奏（前5章能否形成翻页驱动力？）",
@@ -70,10 +88,12 @@ export class FoundationReviewerAgent extends BaseAgent {
         ];
   }
 
-  private derivativeDimensions(language: "zh" | "en", mode: "fanfic" | "series"): ReadonlyArray<string> {
+  private derivativeDimensions(language: "ko" | "zh" | "en", mode: "fanfic" | "series"): ReadonlyArray<string> {
     const modeLabel = mode === "fanfic"
-      ? (language === "en" ? "Fan Fiction" : "同人")
-      : (language === "en" ? "Series" : "系列");
+      ? (language === "en" ? "Fan Fiction" : language === "ko" ? "동인" : "同人")
+      : (language === "en" ? "Series" : language === "ko" ? "시리즈" : "系列");
+
+    const koreanModeLabel = mode === "fanfic" ? "동인" : "시리즈";
 
     return language === "en"
       ? [
@@ -83,6 +103,14 @@ export class FoundationReviewerAgent extends BaseAgent {
           "Opening Momentum (Can the first 5 chapters create a page-turning hook without requiring 3 chapters of setup?)",
           `Pacing Feasibility (Does the outline avoid the trap of re-walking the original's plot beats?)`,
         ]
+      : language === "ko"
+        ? [
+            `원작 DNA 보존 (${koreanModeLabel}가 원작의 세계 규칙, 캐릭터 성격, 확정 사실을 존중하는가?)`,
+            "새 서사 공간 (분기점이나 새로운 무대가 분명해서 원작 재탕이 아니라 독자적인 전개 공간이 열리는가?)",
+            "핵심 갈등 (새 이야기의 중심 갈등이 충분히 강하고 원작과도 구별되는가?)",
+            "초반 추진력 (초반 5화 안에 독자를 넘기게 만드는 훅이 생기며, 3화 이상 준비만 하지는 않는가?)",
+            "전개 리듬의 지속 가능성 (개요가 원작 전개를 그대로 다시 밟는 함정을 피하고 있는가?)",
+          ]
       : [
           `原作DNA保留（${modeLabel}是否尊重原作的世界规则、角色性格、已确立事实？）`,
           `新叙事空间（是否有明确的分岔点或新领域，让故事有原创空间，而非复述原作？）`,
@@ -164,9 +192,47 @@ ${canonBlock}${styleBlock}
 Be strict. 80 means "ready to write without changes."`;
   }
 
-  private buildFoundationExcerpt(foundation: ArchitectOutput, language: "zh" | "en"): string {
+  private buildKoreanReviewPrompt(
+    dimensions: ReadonlyArray<string>,
+    canonBlock: string,
+    styleBlock: string,
+  ): string {
+    return `당신은 신작의 기초 설계(세계관 + 개요 + 규칙)를 검토하는 수석 소설 편집자다.
+
+아래 각 항목을 0-100점으로 채점하고, 구체적인 피드백을 남겨라:
+
+${dimensions.map((dim, i) => `${i + 1}. ${dim}`).join("\n")}
+
+## 채점 기준
+- 80점 이상: 통과, 바로 집필 시작 가능
+- 60-79점: 뚜렷한 문제가 있어 수정 필요
+- 60점 미만: 방향 자체를 다시 설계해야 함
+
+## 출력 형식 (엄수)
+=== DIMENSION: 1 ===
+점수: {0-100}
+의견: {구체적 피드백}
+
+=== DIMENSION: 2 ===
+점수: {0-100}
+의견: {구체적 피드백}
+
+...
+
+=== OVERALL ===
+총점: {가중 평균}
+통과: {예/아니오}
+총평: {가장 큰 문제와 가장 살릴 만한 장점을 1-2문단으로 정리}
+${canonBlock}${styleBlock}
+
+엄격하게 심사하라. 80점은 "수정 없이 바로 집필 가능"을 뜻한다.`;
+  }
+
+  private buildFoundationExcerpt(foundation: ArchitectOutput, language: "ko" | "zh" | "en"): string {
     return language === "en"
       ? `## Story Bible\n${foundation.storyBible.slice(0, 3000)}\n\n## Volume Outline\n${foundation.volumeOutline.slice(0, 3000)}\n\n## Book Rules\n${foundation.bookRules.slice(0, 1500)}\n\n## Initial State\n${foundation.currentState.slice(0, 1000)}\n\n## Initial Hooks\n${foundation.pendingHooks.slice(0, 1000)}`
+      : language === "ko"
+        ? `## 스토리 바이블\n${foundation.storyBible.slice(0, 3000)}\n\n## 권차 개요\n${foundation.volumeOutline.slice(0, 3000)}\n\n## 작품 규칙\n${foundation.bookRules.slice(0, 1500)}\n\n## 초기 상태\n${foundation.currentState.slice(0, 1000)}\n\n## 초기 복선\n${foundation.pendingHooks.slice(0, 1000)}`
       : `## 世界设定\n${foundation.storyBible.slice(0, 3000)}\n\n## 卷纲\n${foundation.volumeOutline.slice(0, 3000)}\n\n## 规则\n${foundation.bookRules.slice(0, 1500)}\n\n## 初始状态\n${foundation.currentState.slice(0, 1000)}\n\n## 初始伏笔\n${foundation.pendingHooks.slice(0, 1000)}`;
   }
 
@@ -178,7 +244,7 @@ Be strict. 80 means "ready to write without changes."`;
 
     for (let i = 0; i < dimensions.length; i++) {
       const regex = new RegExp(
-        `=== DIMENSION: ${i + 1} ===\\s*[\\s\\S]*?(?:分数|Score)[：:]\\s*(\\d+)[\\s\\S]*?(?:意见|Feedback)[：:]\\s*([\\s\\S]*?)(?==== |$)`,
+        `=== DIMENSION: ${i + 1} ===\\s*[\\s\\S]*?(?:分数|Score|점수)[：:]\\s*(\\d+)[\\s\\S]*?(?:意见|Feedback|의견)[：:]\\s*([\\s\\S]*?)(?==== |$)`,
       );
       const match = content.match(regex);
       parsedDimensions.push({
@@ -195,7 +261,7 @@ Be strict. 80 means "ready to write without changes."`;
     const passed = totalScore >= PASS_THRESHOLD && !anyBelowFloor;
 
     const overallMatch = content.match(
-      /=== OVERALL ===[\s\S]*?(?:总评|Summary)[：:]\s*([\s\S]*?)$/,
+      /=== OVERALL ===[\s\S]*?(?:总评|Summary|총평)[：:]\s*([\s\S]*?)$/,
     );
     const overallFeedback = overallMatch ? overallMatch[1]!.trim() : "(parse failed)";
 
