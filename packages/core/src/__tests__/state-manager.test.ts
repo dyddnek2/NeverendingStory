@@ -818,6 +818,33 @@ describe("StateManager", () => {
       expect(currentFocus).not.toContain("# Current Focus");
     });
 
+    it("creates localized Korean defaults for Korean books", async () => {
+      await manager.saveBookConfig("ko-book", {
+        id: "ko-book",
+        title: "한국어 책",
+        platform: "tomato",
+        genre: "other",
+        status: "outlining",
+        targetChapters: 100,
+        chapterWordCount: 2200,
+        language: "ko",
+        createdAt: "2026-04-20T00:00:00Z",
+        updatedAt: "2026-04-20T00:00:00Z",
+      });
+
+      await manager.ensureControlDocuments("ko-book");
+
+      const storyDir = join(manager.bookDir("ko-book"), "story");
+      const authorIntent = await readFile(join(storyDir, "author_intent.md"), "utf-8");
+      const currentFocus = await readFile(join(storyDir, "current_focus.md"), "utf-8");
+
+      expect(authorIntent).toContain("# 작가 의도");
+      expect(currentFocus).toContain("# 현재 집중");
+      expect(currentFocus).toContain("## 이번 구간 핵심");
+      expect(currentFocus).not.toContain("# Current Focus");
+      expect(currentFocus).not.toContain("# 当前聚焦");
+    });
+
     it("bootstraps structured runtime state from legacy markdown truth files", async () => {
       const bookId = "runtime-state-book";
       const storyDir = join(manager.bookDir(bookId), "story");
